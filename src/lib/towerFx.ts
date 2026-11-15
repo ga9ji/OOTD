@@ -133,3 +133,94 @@ export function settleNoteHz(n: number): number {
   const semis = PENTATONIC[idx % PENTATONIC.length]! + 12 * octave
   return 261.63 * 2 ** (semis / 12)
 }
+
+// ----------------------------------------------------------------------------
+// 記念写真の構図（world px の矩形）。写真は縦長 3:4 に固定する
+// ----------------------------------------------------------------------------
+export type Rect = { x: number; y: number; w: number; h: number }
+
+export const PHOTO_ASPECT = 3 / 4
+
+/** 積めた瞬間の構図: 台座を下端中央に置き、頂上まで入れる（低いタワーでも寄りすぎない） */
+export function stackView(peakTop: number, groundTop: number, centerX: number): Rect {
+  const bottom = groundTop + 50
+  const top = Math.min(peakTop - 50, bottom - 506)
+  const h = bottom - top
+  const w = h * PHOTO_ASPECT
+  return { x: centerX - w / 2, y: top, w, h }
+}
+
+/**
+ * 崩れている最中の構図: 積めた瞬間の構図（base）を必ず含み、散らばったピースが入るぶんだけ引く。
+ * ピースが base の中に収まっているうちは base と同じ。
+ * 遠くへ飛んだ・台座の下まで落ちたピースは追わない（そのために全体が豆粒になるのを避ける）。
+ */
+export function collapseView(base: Rect, pieces: Array<{ x: number; y: number; r: number }>): Rect {
+  const minX = base.x - base.w * 0.75
+  const maxX = base.x + base.w * 1.75
+  const minY = base.y - base.h * 0.25
+  const maxY = base.y + base.h + 220
+  let x0 = base.x
+  let x1 = base.x + base.w
+  let y0 = base.y
+  let y1 = base.y + base.h
+  for (const p of pieces) {
+    if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue
+    x0 = Math.min(x0, Math.max(minX, p.x - p.r))
+    x1 = Math.max(x1, Math.min(maxX, p.x + p.r))
+    y0 = Math.min(y0, Math.max(minY, p.y - p.r))
+    y1 = Math.max(y1, Math.min(maxY, p.y + p.r))
+  }
+  // 3:4 に合わせて、足りない辺を中心から広げる
+  let w = x1 - x0
+  let h = y1 - y0
+  if (w / h < PHOTO_ASPECT) w = h * PHOTO_ASPECT
+  else h = w / PHOTO_ASPECT
+  return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h }
+}
+
+/**
+ * コマごとの構図を前後 radius コマの平均でならす。ピースが範囲の外へ出た瞬間に
+ * 構図が切り替わるので、コマを送ったときに画が飛ばないようにする。
+ */
+export function smoothRects(rects: Rect[], radius: number): Rect[] {
+  return rects.map((_, i) => {
+    const from = Math.max(0, i - radius)
+    const to = Math.min(rects.length - 1, i + radius)
+    const acc = { x: 0, y: 0, w: 0, h: 0 }
+    for (let j = from; j <= to; j++) {
+      const r = rects[j]!
+      acc.x += r.x
+      acc.y += r.y
+      acc.w += r.w
+      acc.h += r.h
+    }
+    const n = to - from + 1
+    return { x: acc.x / n, y: acc.y / n, w: acc.w / n, h: acc.h / n }
+  })
+}
+
+/**
+ * コマ送り用の記録から、冒頭の「何も動いていないコマ」を落とす。
+ * 各コマは [x, y, angle, x, y, angle, ...]。ピースが増えたコマは動きがあったとみなす。
+ */
+export function trimStillLead(frames: Float32Array[], eps = 0.5): Float32Array[] {
+  let start = 0
+  while (start < frames.length - 1) {
+    const a = frames[start]!
+    const b = frames[start + 1]!
+    if (a.length !== b.length) break
+    let moved = false
+    for (let i = 0; i < a.length; i++) {
+      // 角度（3つめごと）は rad なので px と同じ重みになるよう拡大して比べる
+      const scale = i % 3 === 2 ? 60 : 1
+      if (Math.abs(a[i]! - b[i]!) * scale > eps) {
+        moved = true
+        break
+      }
+    }
+    if (moved) break
+    start++
+  }
+  return frames.slice(start)
+}

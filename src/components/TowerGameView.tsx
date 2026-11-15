@@ -4,6 +4,7 @@ import cutoutsJson from '../data/cutouts.json'
 import GameShareButton from './GameShareButton'
 import { useI18n } from '../lib/i18n'
 import type { CutoutsFile } from '../lib/platform'
+import { saveImageFile } from '../lib/share'
 import {
   DENSITY,
   extractShapeRects,
@@ -24,14 +25,19 @@ import {
 import { createTowerAudio, type TowerAudio } from '../lib/towerAudio'
 import {
   clamp01,
+  collapseView,
   easeOutBack,
   heightMeters,
   PX_PER_M,
   samplePalette,
   skyAt,
+  smoothRects,
   smoothstep,
+  stackView,
   topOffset,
+  trimStillLead,
   type LocalBox,
+  type Rect,
 } from '../lib/towerFx'
 import { fmtDate, outfits } from '../lib/useData'
 
@@ -40,7 +46,7 @@ import { fmtDate, outfits } from '../lib/useData'
 // 物理は planck.js（Box2D）、衝突形状は lib/tower.ts のアルファスキャンで作る。
 // ここは描画（Canvas 2D）と入力とUI。
 //
-// 演出（空・影・土煙・画面の揺れ・効果音・崩落のスローモーション・記念写真）は
+// 演出（空・影・土煙・画面の揺れ・効果音・崩落のスローモーション・記念写真とその保存）は
 // すべて「読むだけ」で、物理・入力・照準カメラ（camY）・スコアには書き込まない。
 
 const cutouts = cutoutsJson as CutoutsFile
@@ -74,8 +80,13 @@ const OVER_SLOW_FRAMES = 78 // 崩落のスローモーションを見せてか�
 const OVER_SLOW_RATE = 0.3
 const SPAWN_FRAMES = 14 // 新しいピースが「ぽん」と出る時間
 const MILESTONE_EVERY = 5
-const PHOTO_W = 300 // 記念写真（CSS px。実体は2倍で描く）
+const PHOTO_W = 300 // 記念写真（CSS px。リザルトには2倍で描く）
 const PHOTO_H = 400
+const REEL_DT = 0.05 // コマ送り用にピースの位置を記録する間隔（物理時間の秒）
+const REEL_MAX = 60 // 直近 3 秒ぶん。崩れはじめからリザルトが出るまでが入る
+const CARD_SCALE = 3.6 // 保存用の画像の倍率（写真部分が 1080×1440 になる）
+const CARD_PAD = 12 // 保存用の画像の白フチ（PHOTO_W と同じ単位）
+const CARD_FOOT = 58 // 白フチ下側の、キャプションを書く余白
 const SHADOW_SCALE = 4 // 影は 1/4 解像度で持ち、拡大時の補間でぼかす
 const SHADOW_PAD = 4
 const CONFETTI = ['#e0a82e', '#d9534f', '#3b7dd8', '#3fa672', '#f1eee3']
@@ -254,6 +265,66 @@ function paintPiece(c: CanvasRenderingContext2D, p: Piece, x: number, y: number,
   c.restore()
 }
 
+// 記念写真の1コマ。絵ではなくピースの位置を覚えておき、リザルト用にも保存用（高解像度）にも描き直す
+type Shot = {
+  pieces: Piece[]
+  poses: Float32Array // pieces の順に [x, y, angle]（world px）。pieces より短いことがある
+  view: Rect // 写す範囲（world px）
+  meters: number // 空の色を決める高さ
+}
+
+// 記念写真を (ox, oy) を左上にして描く。scale は PHOTO_W×PHOTO_H に対する倍率
+function paintShot(c: CanvasRenderingContext2D, shot: Shot, scale: number, ox = 0, oy = 0) {
+  c.save()
+  c.setTransform(scale, 0, 0, scale, ox * scale, oy * scale)
+  c.beginPath()
+  c.rect(0, 0, PHOTO_W, PHOTO_H)
+  c.clip()
+  c.imageSmoothingQuality = 'high'
+  paintSky(c, PHOTO_W, PHOTO_H, shot.meters, 0, 0)
+  const s = PHOTO_W / shot.view.w
+  c.scale(s, s)
+  c.translate(-shot.view.x, -shot.view.y)
+  paintPedestal(c)
+  const n = Math.min(shot.pieces.length, shot.poses.length / 3)
+  for (let i = 0; i < n; i++) {
+    paintPiece(c, shot.pieces[i]!, shot.poses[i * 3]!, shot.poses[i * 3 + 1]!, shot.poses[i * 3 + 2]!)
+  }
+  c.restore()
+}
+
+// 保存用の画像: 白フチのインスタント写真風に、スコアとゲーム名を書き込む
+function composePhotoCard(shot: Shot, caption: string, credit: string, font: string): HTMLCanvasElement {
+  const w = PHOTO_W + CARD_PAD * 2
+  const h = CARD_PAD + PHOTO_H + CARD_FOOT
+  const card = document.createElement('canvas')
+  card.width = Math.round(w * CARD_SCALE)
+  card.height = Math.round(h * CARD_SCALE)
+  const c = card.getContext('2d')!
+  c.fillStyle = '#fff'
+  c.fillRect(0, 0, card.width, card.height)
+  paintShot(c, shot, CARD_SCALE, CARD_PAD, CARD_PAD)
+  c.setTransform(CARD_SCALE, 0, 0, CARD_SCALE, 0, 0)
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillStyle = '#3a3a41'
+  c.font = `600 15px ${font}`
+  c.fillText(caption, w / 2, CARD_PAD + PHOTO_H + 24)
+  c.fillStyle = '#8f8f98'
+  c.font = `9px ${font}`
+  c.fillText(credit, w / 2, CARD_PAD + PHOTO_H + 43)
+  return card
+}
+
+// toBlob は非同期で、待つあいだに共有シートを開くためのユーザー操作判定が切れることがある。
+// 同期で取れる data URL から File を作る
+function canvasToJpegFile(canvas: HTMLCanvasElement, name: string): File {
+  const bin = atob(canvas.toDataURL('image/jpeg', 0.92).split(',')[1]!)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new File([bytes], name, { type: 'image/jpeg' })
+}
+
 const outfitByKey = new Map(outfits.map((o) => [o.key, o]))
 const SPRITE_KEYS = Object.keys(cutouts.sprites)
 
@@ -334,6 +405,68 @@ function CountUp({ value }: { value: number }) {
   return <>{shown}</>
 }
 
+// リザルトの記念写真。スライダーで「積めた瞬間」から「崩れた瞬間」までのコマを選び、画像として保存できる
+function TowerPhoto({ shots, score, height }: { shots: Shot[]; score: number; height: number }) {
+  const { t } = useI18n()
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [index, setIndex] = useState(0)
+  const [failed, setFailed] = useState(false)
+  const shot = shots[Math.min(index, shots.length - 1)]!
+  const caption = `${score}${t('体')} · ${height.toFixed(1)}m`
+
+  useEffect(() => {
+    const c = canvasRef.current?.getContext('2d')
+    if (c) paintShot(c, shot, 2)
+  }, [shot])
+
+  const save = async () => {
+    setFailed(false)
+    try {
+      const font = getComputedStyle(canvasRef.current!).fontFamily
+      const card = composePhotoCard(shot, caption, `${t('タワー')} — ${t('出勤服アーカイブ')}`, font)
+      // スマホは共有シート（iOS は「画像を保存」で写真アプリに入る）、PC はそのままダウンロード
+      await saveImageFile(canvasToJpegFile(card, `tower-${score}.jpg`), {
+        title: caption,
+        useShareSheet: window.matchMedia('(pointer: coarse)').matches,
+      })
+    } catch {
+      setFailed(true)
+    }
+  }
+
+  return (
+    <>
+      <figure className="tower-photo">
+        <canvas ref={canvasRef} className="mono" width={PHOTO_W * 2} height={PHOTO_H * 2} />
+        <figcaption className="mono">{caption}</figcaption>
+      </figure>
+      {shots.length > 1 && (
+        <div className="tower-reel">
+          <span>{t('積めた瞬間')}</span>
+          <input
+            type="range"
+            min={0}
+            max={shots.length - 1}
+            step={1}
+            value={index}
+            onChange={(e) => setIndex(Number(e.target.value))}
+            aria-label={t('写真にする瞬間をえらぶ')}
+          />
+          <span>{t('崩れた瞬間')}</span>
+        </div>
+      )}
+      <button className="tower-btn tower-save jp" onClick={save}>
+        {t('写真を保存')}
+      </button>
+      {failed && (
+        <span className="tower-save-error" role="status">
+          {t('保存できませんでした')}
+        </span>
+      )}
+    </>
+  )
+}
+
 function randomKey(prev?: string): string {
   let k = SPRITE_KEYS[Math.floor(Math.random() * SPRITE_KEYS.length)]
   if (SPRITE_KEYS.length > 1) {
@@ -351,8 +484,8 @@ export default function TowerGameView({ onBack }: Props) {
   const [nextKey, setNextKey] = useState<string | null>(null)
   const [caption, setCaption] = useState('')
   const [resetTick, setResetTick] = useState(0) // もういちど で全体を作り直す
-  // リザルトに出す記念写真（最後に積めた瞬間のタワー）と到達高さ
-  const [result, setResult] = useState<{ photo: string | null; height: number }>({ photo: null, height: 0 })
+  // リザルトに出す記念写真（最後に積めた瞬間のタワーと、そこから崩れるまでのコマ）と到達高さ
+  const [result, setResult] = useState<{ shots: Shot[]; height: number }>({ shots: [], height: 0 })
   const audioRef = useRef<TowerAudio | null>(null)
   if (!audioRef.current) audioRef.current = createTowerAudio()
   const [muted, setMuted] = useState(() => audioRef.current!.muted())
@@ -425,10 +558,9 @@ export default function TowerGameView({ onBack }: Props) {
     const particles: Particle[] = []
     const popups: Popup[] = []
     const trail: Array<{ x: number; y: number; a: number }> = []
-    const photo = document.createElement('canvas')
-    photo.width = PHOTO_W * 2
-    photo.height = PHOTO_H * 2
-    let hasPhoto = false
+    let stackPoses: Float32Array | null = null // 最後に積めた瞬間の全ピースの位置
+    const reel: Float32Array[] = [] // 直近の全ピースの位置（崩れ方のコマ送り用）
+    let reelClock = 0
 
     // 衝突の瞬間を拾う（読むだけ）。相対速度の大きい接触を1フレームに1件だけ採用する
     world.on('begin-contact', (contact: Contact) => {
@@ -501,24 +633,16 @@ export default function TowerGameView({ onBack }: Props) {
       }
     }
 
-    // 記念写真: 積めた瞬間のタワー全体を、そのときの空と一緒に別キャンバスへ描いておく
-    const takePhoto = () => {
-      const c = photo.getContext('2d')!
-      c.setTransform(2, 0, 0, 2, 0, 0)
-      paintSky(c, PHOTO_W, PHOTO_H, heightMeters(GROUND_TOP - peakTop), 0, 0)
-      const bottom = GROUND_TOP + 50
-      const top = Math.min(peakTop - 50, bottom - 506)
-      const s = PHOTO_H / (bottom - top)
-      c.translate(PHOTO_W / 2, PHOTO_H)
-      c.scale(s, s)
-      c.translate(-VIEW_W / 2, -bottom)
-      paintPedestal(c)
-      for (const p of placed) {
-        if (!p.body) continue
-        const pos = p.body.getPosition()
-        paintPiece(c, p, pos.x * PPM, pos.y * PPM, p.body.getAngle())
-      }
-      hasPhoto = true
+    // 記念写真のもと: 場に出ている全ピースの位置を placed の順に控える
+    const snapshot = () => {
+      const poses = new Float32Array(placed.length * 3)
+      placed.forEach((p, i) => {
+        const pos = p.body!.getPosition()
+        poses[i * 3] = pos.x * PPM
+        poses[i * 3 + 1] = pos.y * PPM
+        poses[i * 3 + 2] = p.body!.getAngle()
+      })
+      return poses
     }
 
     // n 体目が静止した瞬間の演出一式
@@ -530,7 +654,7 @@ export default function TowerGameView({ onBack }: Props) {
       for (const q of placed) if (q.body) top = Math.min(top, pieceTop(q))
       peakTop = top
       saveBestHeight(heightMeters(GROUND_TOP - peakTop))
-      takePhoto()
+      stackPoses = snapshot()
       popups.push({ x, y: pieceTop(p) - 14, text: '+1', life: 50 })
       particles.push({ x, y, vx: 0, vy: 0, life: 26, max: 26, size: 20, color: p.palette[0]!, rot: 0, vr: 0, kind: 'ring' })
       audio.settle(scoreLocal)
@@ -549,10 +673,26 @@ export default function TowerGameView({ onBack }: Props) {
     const reveal = () => {
       if (revealed) return
       revealed = true
-      setResult({
-        photo: hasPhoto ? photo.toDataURL('image/jpeg', 0.86) : null,
-        height: heightMeters(GROUND_TOP - peakTop),
-      })
+      const meters = heightMeters(GROUND_TOP - peakTop)
+      // 記念写真: 1コマめは積めた瞬間、続きは崩れていくコマ（1体も積めていなければ写真なし）
+      const shots: Shot[] = []
+      if (stackPoses) {
+        const pieces = placed.slice()
+        const base = stackView(peakTop, GROUND_TOP, VIEW_W / 2)
+        shots.push({ pieces, poses: stackPoses, view: base, meters })
+        reel.push(snapshot())
+        const frames = trimStillLead(reel)
+        const views = frames.map((poses) => {
+          const spread = []
+          for (let i = 0; i < poses.length; i += 3) {
+            const p = pieces[i / 3]!
+            spread.push({ x: poses[i]!, y: poses[i + 1]!, r: Math.max(p.dispW, p.dispH) / 2 })
+          }
+          return collapseView(base, spread)
+        })
+        smoothRects(views, 3).forEach((view, i) => shots.push({ pieces, poses: frames[i]!, view, meters }))
+      }
+      setResult({ shots, height: meters })
       setOver(true)
     }
 
@@ -686,7 +826,14 @@ export default function TowerGameView({ onBack }: Props) {
       frame++
       // プレイ中は常に 1/60。スローにするのは勝敗が決まった後の崩落だけ
       const slow = gameOver && !reduced && overFrames <= OVER_SLOW_FRAMES
-      world.step(slow ? OVER_SLOW_RATE / 60 : 1 / 60, 8, 3)
+      const dt = slow ? OVER_SLOW_RATE / 60 : 1 / 60
+      world.step(dt, 8, 3)
+      // 崩れ方をあとから選べるよう、リザルトが出るまでの位置を控えておく（読むだけ）
+      if (!revealed && placed.length > 0 && (reelClock += dt) >= REEL_DT - 1e-9) {
+        reelClock = 0
+        reel.push(snapshot())
+        if (reel.length > REEL_MAX) reel.shift()
+      }
       if (gameOver && !revealed && ++overFrames > OVER_SLOW_FRAMES) reveal()
 
       // 落下中ピースの静止判定
@@ -1051,7 +1198,7 @@ export default function TowerGameView({ onBack }: Props) {
     setOver(false)
     setNextKey(null)
     setCaption('')
-    setResult({ photo: null, height: 0 })
+    setResult({ shots: [], height: 0 })
     setResetTick((t) => t + 1)
   }
 
@@ -1085,15 +1232,7 @@ export default function TowerGameView({ onBack }: Props) {
           {over && (
             <div className="tower-overlay">
               <div className="tower-result jp">
-                {result.photo && (
-                  <figure className="tower-photo">
-                    <img src={result.photo} alt="" />
-                    <figcaption className="mono">
-                      {score}
-                      {t('体')} · {result.height.toFixed(1)}m
-                    </figcaption>
-                  </figure>
-                )}
+                {result.shots.length > 0 && <TowerPhoto shots={result.shots} score={score} height={result.height} />}
                 <b className="mono">
                   <CountUp value={score} />
                   {t('体')}

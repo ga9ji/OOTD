@@ -6111,6 +6111,7 @@ a {
 }
 .tower-screen {
   position: relative;
+  container-type: inline-size; /* リザルトの記念写真を画面の高さ（= 幅 × 1.5）に合わせて縮める */
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
@@ -6275,10 +6276,12 @@ a {
   transform: rotate(-2.5deg);
   animation: tower-photo-in 0.6s 0.12s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
-.tower-photo img {
+.tower-photo canvas {
   display: block;
   width: auto;
   height: min(200px, 30vh);
+  /* 写真以外（スライダー・ボタン・スコア・余白）で約 316px 使う。小さい画面でも枠からはみ出さない高さにする */
+  height: clamp(72px, 150cqw - 316px, 200px);
   aspect-ratio: 3 / 4;
   border-radius: 2px;
 }
@@ -6287,6 +6290,31 @@ a {
   font-size: 11px;
   text-align: center;
   color: #3a3a41;
+}
+/* 記念写真のコマ送り（積めた瞬間 ←→ 崩れた瞬間）と保存 */
+.tower-reel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.tower-reel span {
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.tower-reel input {
+  width: 96px;
+  height: 22px; /* 指でつまめる高さを確保する */
+  margin: 0;
+  accent-color: var(--text);
+}
+.tower-save {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+.tower-result .tower-save-error {
+  font-size: 11.5px;
+  color: rgb(176, 58, 46);
 }
 @keyframes tower-photo-in {
   from {

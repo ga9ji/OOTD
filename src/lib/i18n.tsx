@@ -351,6 +351,11 @@ export const EN: Record<string, string> = {
   '体': ' pcs',
   '自己ベスト更新！': 'NEW PERSONAL BEST!',
   'Xでポスト': 'Post on X',
+  '写真を保存': 'Save photo',
+  '積めた瞬間': 'Stacked',
+  '崩れた瞬間': 'Collapsed',
+  '写真にする瞬間をえらぶ': 'Choose the moment to capture',
+  '保存できませんでした': 'Could not save the photo',
   'ドラッグで移動 / タップで回転 / はなすと落下':
     'Drag to move / Tap to rotate / Release to drop',
   'つぎ': 'NEXT',

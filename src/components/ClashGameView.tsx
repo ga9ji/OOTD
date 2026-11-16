@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import cutoutsJson from '../data/cutouts.json'
 import {
   ARENA,
-  ATTACKS,
-  CPU_PROFILES,
   createClashMatch,
-  cpuClashInput,
   emptyClashInput,
   stepClashMatch,
   type ClashEvent,
   type ClashInput,
-  type ClashMatch,
-  type Fighter,
+  type ClashKit,
   type FighterStats,
 } from '../lib/clash'
-import { SEASON_COLOR, SEASON_LABEL, seasonOf, type Season } from '../lib/duel'
+import { createClashAudio, type ClashAudio } from '../lib/clashAudio'
+import { CPU_LEVELS, CPU_PROFILES, createClashCpu, predictKo, type CpuLevel } from '../lib/clashCpu'
+import { createClashRenderer, type ClashLook } from '../lib/clashRender'
+import { KIT_INFO, clashStats, clashType, type ClashType } from '../lib/clashRoster'
+import { SEASON_COLOR, SEASON_LABEL, seasonOf } from '../lib/duel'
+import { useI18n } from '../lib/i18n'
 import { dominantColor, type CutoutsFile } from '../lib/platform'
 import { colorBuckets, fmtDate, outfits, type Data } from '../lib/useData'
 import GameShareButton from './GameShareButton'
@@ -24,29 +25,44 @@ type Props = {
   onBack: () => void
 }
 
-type Difficulty = keyof typeof CPU_PROFILES
-type Mode = 'cpu' | 'local'
+type Mode = 'cpu' | 'watch' | 'local'
 type Screen = 'select' | 'play'
 
-type ClashChara = {
-  key: string
-  no: number | null
+type ClashChara = ClashLook & {
   date: string
-  season: Season
   color?: string
-  accent: string
-  accentSoft: string
-  ratio: number
   stats: FighterStats
-  typeLabel: string
-  specialLabel: string
+  type: ClashType
+}
+
+type SideStats = { damage: number; kos: number; combo: number; parries: number }
+type MatchResult = {
+  winner: 0 | 1
+  timeUp: boolean
+  seconds: number
+  sides: [SideStats, SideStats]
 }
 
 const cutouts = cutoutsJson as CutoutsFile
 const spriteUrl = (key: string) => `${import.meta.env.BASE_URL}cutouts/${key}.webp`
-const SOUND_KEY = 'clash.sound'
+const LEVEL_KEY = 'clash.level'
+const BEST_KEY = 'clash.best'
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
+
+const LEVEL_LABEL: Record<CpuLevel, string> = {
+  easy: 'EASY',
+  normal: 'NORMAL',
+  hard: 'HARD',
+  oni: 'ONI',
+}
+
+const LEVEL_LEAD: Record<CpuLevel, string> = {
+  easy: 'よく手が止まる。まずは操作に慣れたい人向け。',
+  normal: '反撃を少しだけ読んでくる。ふつうに強い。',
+  hard: '回避・ジャストガード・メテオまで使う。',
+  oni: 'こちらの次の一手まで読んでくる。',
+}
 
 const COLOR_SOFT: Record<string, string> = {
   white: '#ffffff',
@@ -64,727 +80,81 @@ const COLOR_SOFT: Record<string, string> = {
   purple: '#d7b8f2',
 }
 
-const SPECIAL_BY_SEASON: Record<Season, string> = {
-  spring: 'BLOOM UPPER',
-  summer: 'HEAT RUSH',
-  autumn: 'LEAF CAST',
-  winter: 'FROST GUARD',
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw == null ? fallback : (JSON.parse(raw) as T)
+  } catch {
+    return fallback
+  }
 }
 
-function statsFor(season: Season, color?: string): FighterStats {
-  const stats: FighterStats = {
-    speed: 1,
-    jump: 1,
-    power: 1,
-    weight: 1,
-    airJumps: 1,
-    airControl: 1,
+function writeStored(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // 保存できなくても遊べる。
   }
-  if (season === 'spring') {
-    stats.jump += 0.1
-    stats.airControl += 0.05
-  } else if (season === 'summer') {
-    stats.speed += 0.1
-    stats.weight -= 0.04
-  } else if (season === 'autumn') {
-    stats.airControl += 0.13
-    stats.power += 0.04
-  } else {
-    stats.weight += 0.13
-    stats.speed -= 0.05
-  }
-  if (color === 'black' || color === 'red') stats.power += 0.1
-  if (color === 'white') {
-    stats.speed += 0.035
-    stats.jump += 0.035
-    stats.power += 0.035
-  }
-  if (color === 'navy' || color === 'brown') stats.weight += 0.08
-  if (color === 'blue' || color === 'purple') {
-    stats.airJumps += 1
-    stats.weight -= 0.07
-  }
-  if (color === 'green' || color === 'pink') stats.jump += 0.075
-  if (color === 'yellow' || color === 'orange') stats.speed += 0.075
-  if (color === 'gray' || color === 'beige') stats.airControl += 0.075
-  return stats
-}
-
-function typeLabel(stats: FighterStats) {
-  const scored = [
-    ['SPEED', stats.speed + stats.airControl * 0.3],
-    ['POWER', stats.power + stats.weight * 0.22],
-    ['AIR', stats.jump + stats.airControl * 0.5 + (stats.airJumps - 1) * 0.4],
-    ['HEAVY', stats.weight + stats.power * 0.2],
-  ] as const
-  return [...scored].sort((a, b) => b[1] - a[1])[0][0]
 }
 
 function buildRoster(data: Data): ClashChara[] {
   const playable = outfits.filter((outfit) => cutouts.sprites[outfit.key])
-  const selected = (['spring', 'summer', 'autumn', 'winter'] as Season[]).flatMap((season) =>
+  const selected = (['spring', 'summer', 'autumn', 'winter'] as ClashKit[]).flatMap((season) =>
     playable.filter((outfit) => seasonOf(outfit.date) === season).slice(0, 3),
   )
   return selected.map((outfit) => {
+    const season = seasonOf(outfit.date)
     const ids = data.outfitItemIds.get(outfit.key)
     const color = dominantColor([...(ids ?? [])].map((id) => data.itemMap.get(id)?.color))
     const bucket = colorBuckets.find((entry) => entry.name === color)
-    const accent = bucket?.swatch ?? SEASON_COLOR[seasonOf(outfit.date)]
-    const stats = statsFor(seasonOf(outfit.date), color)
+    const stats = clashStats(season, color)
     const sprite = cutouts.sprites[outfit.key]
     return {
       key: outfit.key,
       no: outfit.no,
       date: outfit.date,
-      season: seasonOf(outfit.date),
+      season,
       color,
-      accent,
+      accent: bucket?.swatch ?? SEASON_COLOR[season],
       accentSoft: COLOR_SOFT[color ?? ''] ?? '#ffffff',
       ratio: sprite.w / sprite.h,
       stats,
-      typeLabel: typeLabel(stats),
-      specialLabel: SPECIAL_BY_SEASON[seasonOf(outfit.date)],
+      type: clashType(stats),
     }
   })
-}
-
-function createClashAudio() {
-  let context: AudioContext | null = null
-  let muted = localStorage.getItem(SOUND_KEY) === 'off'
-  let musicTimer: number | null = null
-  let beat = 0
-
-  const getContext = () => {
-    if (!context || context.state === 'closed') context = new AudioContext()
-    if (context.state === 'suspended') void context.resume()
-    return context
-  }
-  const tone = (
-    frequency: number,
-    duration: number,
-    type: OscillatorType,
-    volume: number,
-    slide = 1,
-    delay = 0,
-  ) => {
-    if (muted) return
-    const audio = getContext()
-    const at = audio.currentTime + delay
-    const oscillator = audio.createOscillator()
-    const gain = audio.createGain()
-    oscillator.type = type
-    oscillator.frequency.setValueAtTime(frequency, at)
-    oscillator.frequency.exponentialRampToValueAtTime(
-      Math.max(32, frequency * slide),
-      at + duration,
-    )
-    gain.gain.setValueAtTime(0.0001, at)
-    gain.gain.exponentialRampToValueAtTime(volume, at + 0.012)
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + duration)
-    oscillator.connect(gain).connect(audio.destination)
-    oscillator.start(at)
-    oscillator.stop(at + duration + 0.03)
-  }
-  const noise = (duration: number, volume: number) => {
-    if (muted) return
-    const audio = getContext()
-    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * duration), audio.sampleRate)
-    const channel = buffer.getChannelData(0)
-    for (let i = 0; i < channel.length; i++) {
-      channel[i] = (Math.random() * 2 - 1) * (1 - i / channel.length)
-    }
-    const source = audio.createBufferSource()
-    const filter = audio.createBiquadFilter()
-    const gain = audio.createGain()
-    source.buffer = buffer
-    filter.type = 'highpass'
-    filter.frequency.value = 500
-    gain.gain.value = volume
-    source.connect(filter).connect(gain).connect(audio.destination)
-    source.start()
-  }
-  const stopMusic = () => {
-    if (musicTimer != null) window.clearInterval(musicTimer)
-    musicTimer = null
-  }
-  const startMusic = () => {
-    if (muted || musicTimer != null || !context) return
-    const bass = [82, 82, 98, 110, 82, 123, 110, 98]
-    const high = [330, 392, 440, 494, 392, 523, 494, 440]
-    const tick = () => {
-      tone(bass[beat % bass.length], 0.4, 'sawtooth', 0.006, 0.78)
-      if (beat % 2 === 0) tone(high[beat % high.length], 0.18, 'triangle', 0.006, 1.02)
-      beat += 1
-    }
-    tick()
-    musicTimer = window.setInterval(tick, 390)
-  }
-
-  return {
-    unlock: () => {
-      getContext()
-      startMusic()
-    },
-    isMuted: () => muted,
-    toggle: () => {
-      muted = !muted
-      localStorage.setItem(SOUND_KEY, muted ? 'off' : 'on')
-      if (muted) stopMusic()
-      else {
-        getContext()
-        tone(660, 0.1, 'sine', 0.04, 1.35)
-        startMusic()
-      }
-      return muted
-    },
-    play: (event: ClashEvent, humanWinner: boolean) => {
-      if (event.type === 'go') {
-        ;[330, 440, 660].forEach((frequency, index) =>
-          tone(frequency, 0.25, 'square', 0.028, 1.08, index * 0.08),
-        )
-      } else if (event.type === 'jump' || event.type === 'airJump') {
-        tone(event.type === 'jump' ? 210 : 330, 0.12, 'triangle', 0.018, 1.8)
-      } else if (event.type === 'attack') {
-        tone(event.kind === 'smash' ? 92 : 145, 0.11, 'sawtooth', 0.014, 1.8)
-      } else if (event.type === 'projectile') {
-        tone(410, 0.2, 'sine', 0.025, 2.1)
-      } else if (event.type === 'hit') {
-        tone(Math.max(52, 160 - event.power * 0.08), 0.16, 'square', 0.035, 0.46)
-        noise(0.09, Math.min(0.06, 0.018 + event.power / 13000))
-      } else if (event.type === 'shield') {
-        tone(520, 0.13, 'sine', 0.025, 0.55)
-      } else if (event.type === 'shieldBreak') {
-        tone(220, 0.5, 'sawtooth', 0.034, 0.17)
-        noise(0.25, 0.045)
-      } else if (event.type === 'ko') {
-        tone(70, 0.55, 'sawtooth', 0.055, 4.8)
-        noise(0.26, 0.055)
-      } else if (event.type === 'gameOver') {
-        if (humanWinner) {
-          ;[392, 494, 587, 784].forEach((frequency, index) =>
-            tone(frequency, 0.45, 'triangle', 0.032, 1.04, index * 0.11),
-          )
-        } else {
-          tone(196, 0.9, 'sawtooth', 0.035, 0.22)
-        }
-      }
-    },
-    close: () => {
-      stopMusic()
-      void context?.close()
-    },
-  }
-}
-
-type Particle = {
-  kind: 'dot' | 'line' | 'ring' | 'text' | 'ghost'
-  x: number
-  y: number
-  vx: number
-  vy: number
-  life: number
-  maxLife: number
-  color: string
-  size: number
-  text?: string
-  fighter?: 0 | 1
-}
-
-function drawRoundedPlatform(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-) {
-  const gradient = context.createLinearGradient(x, y, x, y + height + 38)
-  gradient.addColorStop(0, '#e7e3ff')
-  gradient.addColorStop(0.16, '#67628a')
-  gradient.addColorStop(1, '#232239')
-  context.fillStyle = gradient
-  context.beginPath()
-  context.roundRect(x, y, width, height + 28, [8, 8, 18, 18])
-  context.fill()
-  context.fillStyle = 'rgba(255,255,255,.65)'
-  context.fillRect(x + 8, y + 3, width - 16, 3)
-  context.strokeStyle = 'rgba(154,128,255,.4)'
-  context.lineWidth = 2
-  context.strokeRect(x + 1, y + 1, width - 2, height + 24)
-}
-
-function drawBackdrop(context: CanvasRenderingContext2D, time: number) {
-  const sky = context.createLinearGradient(0, 0, 0, ARENA.height)
-  sky.addColorStop(0, '#080817')
-  sky.addColorStop(0.55, '#241f46')
-  sky.addColorStop(1, '#8b496b')
-  context.fillStyle = sky
-  context.fillRect(0, 0, ARENA.width, ARENA.height)
-
-  const glow = context.createRadialGradient(640, 190, 10, 640, 190, 420)
-  glow.addColorStop(0, 'rgba(255,185,151,.38)')
-  glow.addColorStop(0.48, 'rgba(155,97,220,.12)')
-  glow.addColorStop(1, 'rgba(0,0,0,0)')
-  context.fillStyle = glow
-  context.fillRect(0, 0, ARENA.width, ARENA.height)
-
-  // 遠景の街並みと、ランウェイ会場の縦照明。
-  context.fillStyle = 'rgba(5,5,17,.5)'
-  for (let i = 0; i < 18; i++) {
-    const width = 54 + ((i * 29) % 45)
-    const height = 60 + ((i * 71) % 170)
-    const x = i * 82 - 40
-    context.fillRect(x, 525 - height, width, height)
-    context.fillStyle = 'rgba(255,220,181,.12)'
-    for (let windowY = 525 - height + 18; windowY < 500; windowY += 31) {
-      context.fillRect(x + 13, windowY, 7, 12)
-      context.fillRect(x + 32, windowY, 7, 12)
-    }
-    context.fillStyle = 'rgba(5,5,17,.5)'
-  }
-  for (let i = 0; i < 7; i++) {
-    const x = 120 + i * 175
-    const alpha = 0.04 + Math.sin(time * 1.4 + i) * 0.018
-    const beam = context.createLinearGradient(x, 0, x + 70, 590)
-    beam.addColorStop(0, `rgba(204,190,255,${alpha + 0.06})`)
-    beam.addColorStop(1, 'rgba(204,190,255,0)')
-    context.fillStyle = beam
-    context.beginPath()
-    context.moveTo(x, 0)
-    context.lineTo(x + 130, 570)
-    context.lineTo(x + 250, 570)
-    context.lineTo(x + 25, 0)
-    context.fill()
-  }
-
-  // 高速に流れる細い光で、静止中も会場に生命感を出す。
-  context.strokeStyle = 'rgba(199,187,255,.08)'
-  context.lineWidth = 1
-  for (let i = 0; i < 24; i++) {
-    const y = (i * 43 + time * (18 + (i % 4) * 8)) % ARENA.height
-    context.beginPath()
-    context.moveTo(0, y)
-    context.lineTo(ARENA.width, y - 110)
-    context.stroke()
-  }
-}
-
-function drawStage(context: CanvasRenderingContext2D) {
-  drawRoundedPlatform(
-    context,
-    ARENA.main.x,
-    ARENA.main.y,
-    ARENA.main.w,
-    ARENA.main.h,
-  )
-  for (const platform of ARENA.platforms) {
-    drawRoundedPlatform(context, platform.x, platform.y, platform.w, platform.h)
-  }
-  context.fillStyle = 'rgba(0,0,0,.34)'
-  context.beginPath()
-  context.ellipse(640, 655, 470, 34, 0, 0, Math.PI * 2)
-  context.fill()
-}
-
-function attackProgress(fighter: Fighter) {
-  if (!fighter.action) return 0
-  return fighter.action.time / ATTACKS[fighter.action.kind].total
-}
-
-function drawAttack(
-  context: CanvasRenderingContext2D,
-  fighter: Fighter,
-  chara: ClashChara,
-) {
-  if (!fighter.action) return
-  const def = ATTACKS[fighter.action.kind]
-  if (fighter.action.time < def.activeFrom - 0.045 || fighter.action.time > def.activeTo + 0.08) {
-    return
-  }
-  const kind = fighter.action.kind
-  const vertical = kind === 'up' || kind === 'recovery'
-  const radius = kind === 'smash' || kind === 'rush' ? 92 : 68
-  const centerX = fighter.x + (vertical ? 0 : fighter.facing * 28)
-  const centerY = fighter.y - (vertical ? 75 : 53)
-  context.save()
-  context.translate(centerX, centerY)
-  context.scale(vertical ? 0.68 : 1, vertical ? 1.25 : 0.72)
-  context.strokeStyle = chara.accentSoft
-  context.shadowColor = chara.accent
-  context.shadowBlur = 22
-  context.lineWidth = kind === 'smash' ? 12 : 8
-  context.globalAlpha = 0.78
-  context.beginPath()
-  const start = fighter.facing > 0 ? -1.15 : Math.PI - 1.95
-  context.arc(0, 0, radius, start, start + Math.PI * 1.2)
-  context.stroke()
-  context.lineWidth = 2
-  context.globalAlpha = 0.95
-  context.beginPath()
-  context.arc(0, 0, radius + 13, start + 0.2, start + Math.PI * 0.88)
-  context.stroke()
-  context.restore()
-}
-
-function drawFighter(
-  context: CanvasRenderingContext2D,
-  fighter: Fighter,
-  chara: ClashChara,
-  image: HTMLImageElement,
-  time: number,
-) {
-  if (fighter.respawn > 0 || fighter.stocks <= 0) return
-  const height = 132
-  const width = height * chara.ratio
-  const action = fighter.action?.kind
-  const progress = attackProgress(fighter)
-  const lean =
-    action === 'rush'
-      ? fighter.facing * 0.32
-      : action === 'smash'
-        ? fighter.facing * (progress < 0.34 ? -0.18 : 0.28)
-        : action === 'air'
-          ? Math.sin(progress * Math.PI * 2) * 0.35
-          : clamp(fighter.vx / 1800, -0.13, 0.13)
-  const stretch =
-    action === 'recovery' ? 1.08 : Math.abs(fighter.vy) > 520 ? 1.045 : fighter.onGround ? 1 : 1.02
-  const blink = fighter.invuln > 0 && Math.floor(time * 14) % 2 === 0
-
-  context.save()
-  context.translate(fighter.x, fighter.y)
-  context.rotate(lean)
-  context.scale(fighter.facing, stretch)
-  context.globalAlpha = blink ? 0.32 : 1
-  context.shadowColor = chara.accent
-  context.shadowBlur = fighter.action ? 24 : 12
-  if (image.complete && image.naturalWidth > 0) {
-    context.drawImage(image, -width / 2, -height, width, height)
-  } else {
-    context.fillStyle = chara.accent
-    context.beginPath()
-    context.roundRect(-18, -112, 36, 112, 12)
-    context.fill()
-  }
-  context.restore()
-  context.globalAlpha = 1
-
-  if (fighter.onGround) {
-    context.fillStyle = 'rgba(0,0,0,.28)'
-    context.beginPath()
-    context.ellipse(fighter.x, fighter.y + 4, 28, 6, 0, 0, Math.PI * 2)
-    context.fill()
-  }
-  if (fighter.shielding) {
-    const shieldRatio = fighter.shield / 100
-    const shield = context.createRadialGradient(
-      fighter.x - 16,
-      fighter.y - 70,
-      8,
-      fighter.x,
-      fighter.y - 56,
-      72,
-    )
-    shield.addColorStop(0, 'rgba(255,255,255,.5)')
-    shield.addColorStop(0.55, `${chara.accent}7d`)
-    shield.addColorStop(1, `${chara.accent}08`)
-    context.fillStyle = shield
-    context.strokeStyle = chara.accentSoft
-    context.lineWidth = 2 + shieldRatio * 3
-    context.beginPath()
-    context.ellipse(
-      fighter.x,
-      fighter.y - 55,
-      45 + shieldRatio * 17,
-      62 + shieldRatio * 13,
-      0,
-      0,
-      Math.PI * 2,
-    )
-    context.fill()
-    context.stroke()
-  }
-  drawAttack(context, fighter, chara)
-}
-
-function drawProjectiles(
-  context: CanvasRenderingContext2D,
-  match: ClashMatch,
-  charas: [ClashChara, ClashChara],
-  time: number,
-) {
-  for (const projectile of match.projectiles) {
-    const chara = charas[projectile.owner]
-    const radius = projectile.radius + Math.sin(time * 18 + projectile.id) * 3
-    const glow = context.createRadialGradient(
-      projectile.x,
-      projectile.y,
-      0,
-      projectile.x,
-      projectile.y,
-      radius * 2.7,
-    )
-    glow.addColorStop(0, '#fff')
-    glow.addColorStop(0.22, chara.accentSoft)
-    glow.addColorStop(0.58, `${chara.accent}b8`)
-    glow.addColorStop(1, `${chara.accent}00`)
-    context.fillStyle = glow
-    context.beginPath()
-    context.arc(projectile.x, projectile.y, radius * 2.7, 0, Math.PI * 2)
-    context.fill()
-    context.strokeStyle = chara.accentSoft
-    context.lineWidth = 3
-    context.beginPath()
-    context.arc(projectile.x, projectile.y, radius, 0, Math.PI * 2)
-    context.stroke()
-    for (let i = 1; i < 5; i++) {
-      context.fillStyle = `${chara.accent}${Math.round(130 / i)
-        .toString(16)
-        .padStart(2, '0')}`
-      context.beginPath()
-      context.arc(
-        projectile.x - (projectile.vx / Math.abs(projectile.vx)) * i * 15,
-        projectile.y,
-        Math.max(2, radius - i * 3),
-        0,
-        Math.PI * 2,
-      )
-      context.fill()
-    }
-  }
-}
-
-function drawParticles(
-  context: CanvasRenderingContext2D,
-  particles: Particle[],
-  images: [HTMLImageElement, HTMLImageElement],
-  charas: [ClashChara, ClashChara],
-) {
-  for (const particle of particles) {
-    const ratio = particle.life / particle.maxLife
-    context.globalAlpha = clamp(ratio * 1.6, 0, 1)
-    if (particle.kind === 'ring') {
-      context.strokeStyle = particle.color
-      context.lineWidth = 3
-      context.beginPath()
-      context.arc(particle.x, particle.y, particle.size * (2 - ratio), 0, Math.PI * 2)
-      context.stroke()
-    } else if (particle.kind === 'line') {
-      context.strokeStyle = particle.color
-      context.lineWidth = particle.size * ratio
-      context.beginPath()
-      context.moveTo(particle.x, particle.y)
-      context.lineTo(particle.x - particle.vx * 0.08, particle.y - particle.vy * 0.08)
-      context.stroke()
-    } else if (particle.kind === 'text') {
-      context.fillStyle = particle.color
-      context.textAlign = 'center'
-      context.font = `900 ${particle.size}px ui-monospace, monospace`
-      context.shadowColor = particle.color
-      context.shadowBlur = 16
-      context.fillText(particle.text ?? '', particle.x, particle.y)
-      context.shadowBlur = 0
-    } else if (particle.kind === 'ghost' && particle.fighter != null) {
-      const chara = charas[particle.fighter]
-      const image = images[particle.fighter]
-      const height = 126
-      const width = height * chara.ratio
-      if (image.complete && image.naturalWidth > 0) {
-        context.drawImage(image, particle.x - width / 2, particle.y - height, width, height)
-      }
-    } else {
-      context.fillStyle = particle.color
-      context.beginPath()
-      context.arc(particle.x, particle.y, particle.size * (0.55 + ratio * 0.45), 0, Math.PI * 2)
-      context.fill()
-    }
-  }
-  context.globalAlpha = 1
-}
-
-function drawStockIcons(
-  context: CanvasRenderingContext2D,
-  fighter: Fighter,
-  x: number,
-  y: number,
-  align: 'left' | 'right',
-  color: string,
-) {
-  for (let i = 0; i < 3; i++) {
-    const cx = align === 'left' ? x + i * 25 : x - i * 25
-    context.fillStyle = i < fighter.stocks ? color : 'rgba(255,255,255,.12)'
-    context.beginPath()
-    context.arc(cx, y, 7, 0, Math.PI * 2)
-    context.fill()
-  }
-}
-
-function drawHud(
-  context: CanvasRenderingContext2D,
-  match: ClashMatch,
-  charas: [ClashChara, ClashChara],
-  mode: Mode,
-) {
-  context.textBaseline = 'alphabetic'
-  context.textAlign = 'center'
-  context.font = '700 24px ui-monospace, monospace'
-  context.fillStyle = '#fff'
-  const minutes = Math.floor(match.clock / 60)
-  const seconds = Math.floor(match.clock % 60)
-  context.fillText(`${minutes}:${String(seconds).padStart(2, '0')}`, ARENA.width / 2, 48)
-
-  const drawSide = (id: 0 | 1, x: number, align: 'left' | 'right') => {
-    const fighter = match.fighters[id]
-    const chara = charas[id]
-    const label = id === 0 ? 'P1' : mode === 'cpu' ? 'CPU' : 'P2'
-    context.textAlign = align
-    context.font = '800 15px ui-monospace, monospace'
-    context.fillStyle = chara.accentSoft
-    context.fillText(`${label} · LOOK #${chara.no ?? '—'}`, x, 38)
-    context.font = `900 ${fighter.percent >= 100 ? 44 : 39}px ui-monospace, monospace`
-    context.fillStyle = fighter.percent >= 120 ? '#ff7b88' : '#fff'
-    context.fillText(`${Math.floor(fighter.percent)}%`, x, 82)
-    drawStockIcons(context, fighter, x, 103, align, chara.accentSoft)
-    if (fighter.shield < 99) {
-      const width = 106
-      const left = align === 'left' ? x : x - width
-      context.fillStyle = 'rgba(255,255,255,.14)'
-      context.fillRect(left, 115, width, 4)
-      context.fillStyle = chara.accent
-      context.fillRect(left, 115, width * (fighter.shield / 100), 4)
-    }
-  }
-  drawSide(0, 46, 'left')
-  drawSide(1, ARENA.width - 46, 'right')
-}
-
-function drawOffscreenMarker(
-  context: CanvasRenderingContext2D,
-  fighter: Fighter,
-  chara: ClashChara,
-) {
-  if (
-    fighter.respawn > 0 ||
-    (fighter.x >= 22 &&
-      fighter.x <= ARENA.width - 22 &&
-      fighter.y >= 28 &&
-      fighter.y <= ARENA.height - 20)
-  ) {
-    return
-  }
-  const x = clamp(fighter.x, 32, ARENA.width - 32)
-  const y = clamp(fighter.y, 42, ARENA.height - 32)
-  context.fillStyle = chara.accentSoft
-  context.shadowColor = chara.accent
-  context.shadowBlur = 18
-  context.beginPath()
-  context.arc(x, y, 18, 0, Math.PI * 2)
-  context.fill()
-  context.shadowBlur = 0
-  context.fillStyle = '#131224'
-  context.font = '900 12px ui-monospace, monospace'
-  context.textAlign = 'center'
-  context.fillText(fighter.id === 0 ? 'P1' : 'P2', x, y + 4)
-}
-
-function renderMatch(
-  context: CanvasRenderingContext2D,
-  match: ClashMatch,
-  charas: [ClashChara, ClashChara],
-  images: [HTMLImageElement, HTMLImageElement],
-  particles: Particle[],
-  time: number,
-  shake: number,
-  flash: number,
-  mode: Mode,
-) {
-  context.clearRect(0, 0, ARENA.width, ARENA.height)
-  context.save()
-  const shakeX = shake > 0 ? (Math.random() - 0.5) * shake * 30 : 0
-  const shakeY = shake > 0 ? (Math.random() - 0.5) * shake * 22 : 0
-  context.translate(shakeX, shakeY)
-  drawBackdrop(context, time)
-  drawStage(context)
-  drawProjectiles(context, match, charas, time)
-  drawParticles(context, particles, images, charas)
-  // 前後関係が固定されないよう、画面の上側にいるファイターから描く。
-  const order = [...match.fighters].sort((a, b) => a.y - b.y)
-  for (const fighter of order) {
-    drawFighter(context, fighter, charas[fighter.id], images[fighter.id], time)
-  }
-  for (const fighter of match.fighters) drawOffscreenMarker(context, fighter, charas[fighter.id])
-
-  const vignette = context.createRadialGradient(640, 355, 210, 640, 355, 760)
-  vignette.addColorStop(0, 'rgba(0,0,0,0)')
-  vignette.addColorStop(1, 'rgba(0,0,8,.5)')
-  context.fillStyle = vignette
-  context.fillRect(0, 0, ARENA.width, ARENA.height)
-  context.restore()
-
-  drawHud(context, match, charas, mode)
-
-  if (match.phase === 'countdown') {
-    const value =
-      match.countdown > 2.25 ? '3' : match.countdown > 1.35 ? '2' : match.countdown > 0.45 ? '1' : 'GO!'
-    context.textAlign = 'center'
-    context.textBaseline = 'middle'
-    context.font = `900 ${value === 'GO!' ? 116 : 148}px ui-monospace, monospace`
-    context.shadowColor = '#9e7bff'
-    context.shadowBlur = 45
-    context.fillStyle = '#fff'
-    context.fillText(value, ARENA.width / 2, ARENA.height / 2 - 20)
-    context.shadowBlur = 0
-  }
-  if (flash > 0) {
-    context.globalAlpha = Math.min(0.34, flash)
-    context.fillStyle = '#fff'
-    context.fillRect(0, 0, ARENA.width, ARENA.height)
-    context.globalAlpha = 1
-  }
-}
-
-function spawnBurst(
-  particles: Particle[],
-  x: number,
-  y: number,
-  color: string,
-  count: number,
-  speed: number,
-  life = 0.55,
-) {
-  for (let i = 0; i < count; i++) {
-    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.3
-    const velocity = speed * (0.45 + Math.random() * 0.8)
-    particles.push({
-      kind: i % 3 === 0 ? 'line' : 'dot',
-      x,
-      y,
-      vx: Math.cos(angle) * velocity,
-      vy: Math.sin(angle) * velocity,
-      life: life * (0.72 + Math.random() * 0.55),
-      maxLife: life,
-      color,
-      size: 2 + Math.random() * 4,
-    })
-  }
-}
-
-function updateParticles(particles: Particle[], dt: number) {
-  for (const particle of particles) {
-    particle.life -= dt
-    particle.x += particle.vx * dt
-    particle.y += particle.vy * dt
-    particle.vx *= Math.pow(0.975, dt * 60)
-    particle.vy += particle.kind === 'text' ? 0 : 260 * dt
-  }
-  return particles.filter((particle) => particle.life > 0)
 }
 
 export default function ClashGameView({ data, onBack }: Props) {
   const roster = useMemo(() => buildRoster(data), [data])
   const [screen, setScreen] = useState<Screen>('select')
   const [mode, setMode] = useState<Mode>('cpu')
-  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const [level, setLevel] = useState<CpuLevel>(() => {
+    const stored = readStored<string>(LEVEL_KEY, 'normal')
+    return CPU_LEVELS.includes(stored as CpuLevel) ? (stored as CpuLevel) : 'normal'
+  })
   const [selected, setSelected] = useState<[number, number]>([0, Math.min(4, roster.length - 1)])
   const [picking, setPicking] = useState<0 | 1>(0)
+  // CPU戦の相手は、選ばなければ毎試合おまかせ。
+  const [foeAuto, setFoeAuto] = useState(true)
+  const [streak, setStreak] = useState(0)
+  const [best, setBest] = useState<Partial<Record<CpuLevel, number>>>(() => readStored(BEST_KEY, {}))
+  const [matchKey, setMatchKey] = useState(0)
+
+  const randomFoe = useCallback(
+    (first: number, avoid: number) => {
+      if (roster.length < 2) return first
+      const pool = roster.map((_, index) => index).filter((index) => index !== first && index !== avoid)
+      const from = pool.length > 0 ? pool : roster.map((_, index) => index).filter((index) => index !== first)
+      return from[Math.floor(Math.random() * from.length)]
+    },
+    [roster],
+  )
+
+  const changeLevel = (next: CpuLevel) => {
+    setLevel(next)
+    setStreak(0)
+    writeStored(LEVEL_KEY, next)
+  }
 
   const pick = (index: number) => {
     setSelected((current) => {
@@ -792,7 +162,50 @@ export default function ClashGameView({ data, onBack }: Props) {
       next[picking] = index
       return next
     })
-    setPicking(picking === 0 ? 1 : 0)
+    if (picking === 1) setFoeAuto(false)
+    if (mode === 'local' && picking === 0) setPicking(1)
+  }
+
+  const start = () => {
+    if (mode !== 'local' && foeAuto) {
+      setSelected(([first, second]) => [first, randomFoe(first, second)])
+    }
+    setStreak(0)
+    setMatchKey((key) => key + 1)
+    setScreen('play')
+  }
+
+  const onResult = useCallback(
+    (winner: 0 | 1) => {
+      if (mode !== 'cpu') return
+      if (winner !== 0) {
+        setStreak(0)
+        return
+      }
+      setStreak((current) => {
+        const next = current + 1
+        setBest((record) => {
+          if ((record[level] ?? 0) >= next) return record
+          const updated = { ...record, [level]: next }
+          writeStored(BEST_KEY, updated)
+          return updated
+        })
+        return next
+      })
+    },
+    [level, mode],
+  )
+
+  if (roster.length < 2) {
+    return (
+      <main className="clash">
+        <div className="clash-select">
+          <button className="game-back jp" onClick={onBack}>
+            ←
+          </button>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -803,25 +216,42 @@ export default function ClashGameView({ data, onBack }: Props) {
           selected={selected}
           picking={picking}
           mode={mode}
-          difficulty={difficulty}
+          level={level}
+          foeAuto={foeAuto}
+          best={best[level] ?? 0}
           onPick={pick}
           onPicking={setPicking}
-          onMode={setMode}
-          onDifficulty={setDifficulty}
-          onRandom={() => {
-            const first = Math.floor(Math.random() * roster.length)
-            let second = Math.floor(Math.random() * roster.length)
-            if (roster.length > 1 && second === first) second = (second + 1) % roster.length
-            setSelected([first, second])
+          onMode={(next) => {
+            setMode(next)
+            setPicking(0)
           }}
-          onStart={() => setScreen('play')}
+          onLevel={changeLevel}
+          onRandom={() => {
+            if (mode === 'local') {
+              const first = Math.floor(Math.random() * roster.length)
+              setSelected([first, randomFoe(first, first)])
+            } else {
+              setFoeAuto(true)
+              setPicking(0)
+            }
+          }}
+          onStart={start}
           onBack={onBack}
         />
       ) : (
         <ClashPlay
+          key={matchKey}
           charas={[roster[selected[0]], roster[selected[1]]]}
           mode={mode}
-          difficulty={difficulty}
+          level={level}
+          streak={streak}
+          best={best[level] ?? 0}
+          onResult={onResult}
+          onRematch={() => setMatchKey((key) => key + 1)}
+          onNext={() => {
+            setSelected(([first, second]) => [first, randomFoe(first, second)])
+            setMatchKey((key) => key + 1)
+          }}
           onRoster={() => setScreen('select')}
         />
       )}
@@ -846,11 +276,13 @@ function ClashSelect({
   selected,
   picking,
   mode,
-  difficulty,
+  level,
+  foeAuto,
+  best,
   onPick,
   onPicking,
   onMode,
-  onDifficulty,
+  onLevel,
   onRandom,
   onStart,
   onBack,
@@ -859,24 +291,30 @@ function ClashSelect({
   selected: [number, number]
   picking: 0 | 1
   mode: Mode
-  difficulty: Difficulty
+  level: CpuLevel
+  foeAuto: boolean
+  best: number
   onPick: (index: number) => void
   onPicking: (slot: 0 | 1) => void
   onMode: (mode: Mode) => void
-  onDifficulty: (difficulty: Difficulty) => void
+  onLevel: (level: CpuLevel) => void
   onRandom: () => void
   onStart: () => void
   onBack: () => void
 }) {
+  const { t } = useI18n()
   const first = roster[selected[0]]
   const second = roster[selected[1]]
+  const sides: [string, string] =
+    mode === 'local' ? ['P1', 'P2'] : mode === 'watch' ? ['CPU 1', 'CPU 2'] : ['P1', 'CPU']
+  const hiddenFoe = mode !== 'local' && foeAuto
   return (
     <div className="clash-select">
       <div className="game-nav clash-nav">
         <button className="game-back jp" onClick={onBack}>
-          ← ゲーム選択にもどる
+          {t('← ゲーム選択にもどる')}
         </button>
-        <GameShareButton game="clash" title="着戦 KISEKAE CLASH" />
+        <GameShareButton game="clash" title={t('着戦 KISEKAE CLASH')} />
       </div>
 
       <div className="clash-title-lockup">
@@ -886,65 +324,76 @@ function ClashSelect({
           <span>KISEKAE CLASH</span>
         </h2>
         <p className="clash-lead jp">
-          ダメージをためて、ステージの外へ吹っ飛ばせ。3ストック先取の出勤服バトル。
+          {t('ダメージをためて、ステージの外へ吹っ飛ばせ。先読みするCPUと戦う、3ストックの出勤服バトル。')}
         </p>
       </div>
 
       <div className="clash-match-options">
-        <div className="clash-segment" role="group" aria-label="対戦モード">
+        <div className="clash-segment" role="group" aria-label={t('対戦モード')}>
           <button className={mode === 'cpu' ? 'active' : ''} onClick={() => onMode('cpu')}>
             <span className="mono">1P</span>
-            <span className="jp">CPU戦</span>
+            <span className="jp">{t('CPU戦')}</span>
+          </button>
+          <button className={mode === 'watch' ? 'active' : ''} onClick={() => onMode('watch')}>
+            <span className="mono">0P</span>
+            <span className="jp">{t('観戦')}</span>
           </button>
           <button className={mode === 'local' ? 'active' : ''} onClick={() => onMode('local')}>
             <span className="mono">2P</span>
-            <span className="jp">ローカル対戦</span>
+            <span className="jp">{t('2人で対戦')}</span>
           </button>
         </div>
-        {mode === 'cpu' && (
-          <div className="clash-difficulty" aria-label="CPUの強さ">
+        {mode !== 'local' && (
+          <div className="clash-difficulty" role="group" aria-label={t('CPUの強さ')}>
             <span className="jp">CPU</span>
-            {(['easy', 'normal', 'hard'] as Difficulty[]).map((level) => (
+            {CPU_LEVELS.map((entry) => (
               <button
-                key={level}
-                className={difficulty === level ? 'active' : ''}
-                onClick={() => onDifficulty(level)}
+                key={entry}
+                className={`${level === entry ? 'active' : ''}${entry === 'oni' ? ' oni' : ''}`}
+                onClick={() => onLevel(entry)}
               >
-                {level.toUpperCase()}
+                {LEVEL_LABEL[entry]}
               </button>
             ))}
           </div>
         )}
         <button className="clash-random jp" onClick={onRandom}>
-          ↻ おまかせ
+          {mode === 'local' ? t('↻ おまかせ') : t('↻ 相手はおまかせ')}
         </button>
       </div>
+      {mode !== 'local' && (
+        <p className="clash-level-lead jp">
+          <b className="mono">{LEVEL_LABEL[level]}</b>
+          {t(LEVEL_LEAD[level])}
+          {mode === 'cpu' && best > 0 && (
+            <span className="clash-best mono">
+              BEST {t('{count}連勝', { count: best })}
+            </span>
+          )}
+        </p>
+      )}
 
       <div className="clash-versus">
-        <ChosenFighter
-          chara={first}
-          side="P1"
-          active={picking === 0}
-          onClick={() => onPicking(0)}
-        />
+        <ChosenFighter chara={first} side={sides[0]} active={picking === 0} onClick={() => onPicking(0)} />
         <span className="clash-vs mono">VS</span>
         <ChosenFighter
           chara={second}
-          side={mode === 'cpu' ? 'CPU' : 'P2'}
+          side={sides[1]}
           active={picking === 1}
+          hidden={hiddenFoe}
           right
           onClick={() => onPicking(1)}
         />
       </div>
 
       <div className="clash-roster-head">
-        <span className="mono">{picking === 0 ? 'P1' : mode === 'cpu' ? 'CPU' : 'P2'} SELECT</span>
-        <span className="jp">ファイターを選ぶ</span>
+        <span className="mono">{sides[picking]} SELECT</span>
+        <span className="jp">{t('ファイターを選ぶ')}</span>
       </div>
       <div className="clash-roster">
         {roster.map((chara, index) => {
           const isFirst = selected[0] === index
-          const isSecond = selected[1] === index
+          const isSecond = selected[1] === index && !hiddenFoe
           return (
             <button
               key={chara.key}
@@ -952,17 +401,17 @@ function ClashSelect({
               style={{ '--fighter-color': chara.accent } as React.CSSProperties}
               onClick={() => onPick(index)}
             >
-              <span className="clash-roster-season mono">{SEASON_LABEL[chara.season]}</span>
+              <span className="clash-roster-season mono">{t(SEASON_LABEL[chara.season])}</span>
               <span className="clash-roster-figure">
                 <img src={spriteUrl(chara.key)} alt="" loading="lazy" decoding="async" />
               </span>
               <span className="clash-roster-no mono">LOOK #{chara.no ?? '—'}</span>
-              <span className="clash-roster-type mono">{chara.typeLabel}</span>
+              <span className="clash-roster-type mono">{chara.type}</span>
               {(isFirst || isSecond) && (
                 <span className="clash-roster-pick mono">
-                  {isFirst ? 'P1' : ''}
+                  {isFirst ? sides[0] : ''}
                   {isFirst && isSecond ? ' · ' : ''}
-                  {isSecond ? (mode === 'cpu' ? 'CPU' : 'P2') : ''}
+                  {isSecond ? sides[1] : ''}
                 </span>
               )}
             </button>
@@ -972,9 +421,39 @@ function ClashSelect({
 
       <button className="clash-ready" onClick={onStart}>
         <span className="mono">READY TO CLASH</span>
-        <span className="jp">対戦をはじめる</span>
+        <span className="jp">{mode === 'watch' ? t('観戦をはじめる') : t('対戦をはじめる')}</span>
         <span aria-hidden="true">→</span>
       </button>
+
+      <details className="clash-howto">
+        <summary className="jp">{t('あそびかたと小技')}</summary>
+        <ul className="jp">
+          <li>
+            <b>{t('吹っ飛ばし')}</b>
+            {t('ダメージ（%）がたまるほど遠くへ飛ぶ。画面の外まで飛ばすと1ストック。')}
+          </li>
+          <li>
+            <b>{t('攻撃')}</b>
+            {t('方向を入れずに弱、左右で強、↑で打ち上げ、↓で足払い。空中の↓はメテオ（叩き落とし）。')}
+          </li>
+          <li>
+            <b>{t('必殺技')}</b>
+            {t('そのままで季節の技、左右で突進、↑で復帰。↑は着地するまで1回だけ。')}
+          </li>
+          <li>
+            <b>{t('ガード')}</b>
+            {t('押しっぱなしで盾。当たる直前に張るとジャストガードで相手がのけぞり、飛び道具は跳ね返る。')}
+          </li>
+          <li>
+            <b>{t('回避')}</b>
+            {t('ガード中に左右で転がり、↓でその場回避。空中ではガードボタンで空中回避。')}
+          </li>
+          <li>
+            <b>{t('崖')}</b>
+            {t('ステージの角には手がかかる。↑か内側でのぼり、ジャンプで跳びのり、攻撃でのぼり払い。')}
+          </li>
+        </ul>
+      </details>
     </div>
   )
 }
@@ -983,39 +462,59 @@ function ChosenFighter({
   chara,
   side,
   active,
+  hidden = false,
   right = false,
   onClick,
 }: {
   chara: ClashChara
   side: string
   active: boolean
+  hidden?: boolean
   right?: boolean
   onClick: () => void
 }) {
+  const { t } = useI18n()
+  const kit = KIT_INFO[chara.season]
   return (
     <button
-      className={`clash-chosen${right ? ' right' : ''}${active ? ' active' : ''}`}
-      style={{ '--fighter-color': chara.accent } as React.CSSProperties}
+      className={`clash-chosen${right ? ' right' : ''}${active ? ' active' : ''}${hidden ? ' mystery' : ''}`}
+      style={{ '--fighter-color': hidden ? '#9e7bff' : chara.accent } as React.CSSProperties}
       onClick={onClick}
     >
       <span className="clash-chosen-side mono">{side}</span>
       <span className="clash-chosen-figure">
-        <img src={spriteUrl(chara.key)} alt="" />
+        {hidden ? (
+          <span className="clash-chosen-unknown mono" aria-hidden="true">
+            ?
+          </span>
+        ) : (
+          <img src={spriteUrl(chara.key)} alt="" />
+        )}
       </span>
-      <span className="clash-chosen-info">
-        <span className="clash-chosen-name mono">LOOK #{chara.no ?? '—'}</span>
-        <span className="clash-chosen-date mono">
-          {fmtDate(chara.date)} · {SEASON_LABEL[chara.season]}
+      {hidden ? (
+        <span className="clash-chosen-info">
+          <span className="clash-chosen-name mono">RANDOM</span>
+          <span className="clash-chosen-note jp">
+            {t('相手は毎試合おまかせ。ここを押すと自分で選べる。')}
+          </span>
         </span>
-        <span className="clash-chosen-type mono">{chara.typeLabel} TYPE</span>
-        <span className="clash-chosen-special mono">B SPECIAL · {chara.specialLabel}</span>
-        <span className="clash-stat-list">
-          <StatMeter label="SPD" value={chara.stats.speed} />
-          <StatMeter label="JMP" value={chara.stats.jump + (chara.stats.airJumps - 1) * 0.12} />
-          <StatMeter label="PWR" value={chara.stats.power} />
-          <StatMeter label="WGT" value={chara.stats.weight} />
+      ) : (
+        <span className="clash-chosen-info">
+          <span className="clash-chosen-name mono">LOOK #{chara.no ?? '—'}</span>
+          <span className="clash-chosen-date mono">
+            {fmtDate(chara.date)} · {t(SEASON_LABEL[chara.season])}
+          </span>
+          <span className="clash-chosen-type mono">{chara.type} TYPE</span>
+          <span className="clash-chosen-special mono">SPECIAL · {kit.name}</span>
+          <span className="clash-chosen-note jp">{t(kit.lead)}</span>
+          <span className="clash-stat-list">
+            <StatMeter label="SPD" value={chara.stats.speed} />
+            <StatMeter label="JMP" value={chara.stats.jump + (chara.stats.airJumps - 1) * 0.12} />
+            <StatMeter label="PWR" value={chara.stats.power} />
+            <StatMeter label="WGT" value={chara.stats.weight} />
+          </span>
         </span>
-      </span>
+      )}
       {active && <span className="clash-choosing mono">SELECTING</span>}
     </button>
   )
@@ -1027,8 +526,6 @@ type TouchState = {
   up: boolean
   down: boolean
   jump: boolean
-  attack: boolean
-  special: boolean
   shield: boolean
   jumpEdge: boolean
   attackEdge: boolean
@@ -1042,8 +539,6 @@ const emptyTouch = (): TouchState => ({
   up: false,
   down: false,
   jump: false,
-  attack: false,
-  special: false,
   shield: false,
   jumpEdge: false,
   attackEdge: false,
@@ -1051,52 +546,141 @@ const emptyTouch = (): TouchState => ({
   shieldEdge: false,
 })
 
+/** 指が要素の外へ滑っても追い続ける。取れなくても操作そのものは通す。 */
+function capturePointer(event: React.PointerEvent<HTMLElement>) {
+  try {
+    event.currentTarget.setPointerCapture(event.pointerId)
+  } catch {
+    // すでに離れたポインターなど。捕まえられなくても入力は受け付ける。
+  }
+}
+
+/** 親指を置いたまま滑らせて向きを変えられるスティック。 */
+function TouchStick({ touch, label }: { touch: React.MutableRefObject<TouchState>; label: string }) {
+  const baseRef = useRef<HTMLDivElement>(null)
+  const knobRef = useRef<HTMLSpanElement>(null)
+  const pointer = useRef<number | null>(null)
+
+  const apply = (event: React.PointerEvent) => {
+    const base = baseRef.current
+    if (!base) return
+    const rect = base.getBoundingClientRect()
+    const radius = rect.width / 2
+    let dx = (event.clientX - (rect.left + radius)) / radius
+    let dy = (event.clientY - (rect.top + radius)) / radius
+    const length = Math.hypot(dx, dy)
+    if (length > 1) {
+      dx /= length
+      dy /= length
+    }
+    const state = touch.current
+    state.left = dx < -0.34
+    state.right = dx > 0.34
+    state.up = dy < -0.5
+    state.down = dy > 0.5
+    if (knobRef.current) {
+      knobRef.current.style.transform = `translate(${dx * radius * 0.55}px, ${dy * radius * 0.55}px)`
+    }
+  }
+  const release = () => {
+    pointer.current = null
+    const state = touch.current
+    state.left = state.right = state.up = state.down = false
+    if (knobRef.current) knobRef.current.style.transform = ''
+  }
+
+  return (
+    <div
+      ref={baseRef}
+      className="clash-stick"
+      role="group"
+      aria-label={label}
+      onPointerDown={(event) => {
+        event.preventDefault()
+        pointer.current = event.pointerId
+        capturePointer(event)
+        apply(event)
+      }}
+      onPointerMove={(event) => {
+        if (pointer.current === event.pointerId) apply(event)
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onLostPointerCapture={release}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <span ref={knobRef} className="clash-stick-knob" />
+    </div>
+  )
+}
+
 function ClashPlay({
   charas,
   mode,
-  difficulty,
+  level,
+  streak,
+  best,
+  onResult,
+  onRematch,
+  onNext,
   onRoster,
 }: {
   charas: [ClashChara, ClashChara]
   mode: Mode
-  difficulty: Difficulty
+  level: CpuLevel
+  streak: number
+  best: number
+  onResult: (winner: 0 | 1) => void
+  onRematch: () => void
+  onNext: () => void
   onRoster: () => void
 }) {
+  const { t } = useI18n()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const shellRef = useRef<HTMLDivElement>(null)
   const touchRef = useRef<TouchState>(emptyTouch())
-  const audioRef = useRef<ReturnType<typeof createClashAudio> | null>(null)
+  const audioRef = useRef<ClashAudio | null>(null)
   if (!audioRef.current) audioRef.current = createClashAudio()
   const [muted, setMuted] = useState(() => audioRef.current!.isMuted())
   const [paused, setPaused] = useState(false)
   const pausedRef = useRef(false)
-  const [winner, setWinner] = useState<0 | 1 | null>(null)
-  const [restartTick, setRestartTick] = useState(0)
+  const [result, setResult] = useState<MatchResult | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const onResultRef = useRef(onResult)
+  onResultRef.current = onResult
+  const labels = useMemo<[string, string]>(
+    () => (mode === 'local' ? ['P1', 'P2'] : mode === 'watch' ? ['CPU 1', 'CPU 2'] : ['P1', 'CPU']),
+    [mode],
+  )
 
   useEffect(() => {
     pausedRef.current = paused
+    if (paused) audioRef.current?.pauseMusic()
+    else audioRef.current?.resumeMusic()
   }, [paused])
   useEffect(() => {
     const onFullscreen = () => setFullscreen(document.fullscreenElement != null)
+    // 画面を離れたら止める（戻ってきたら吹っ飛ばされていた、を防ぐ）。
+    const onHidden = () => {
+      if (document.hidden) setPaused(true)
+    }
     document.addEventListener('fullscreenchange', onFullscreen)
-    return () => document.removeEventListener('fullscreenchange', onFullscreen)
+    document.addEventListener('visibilitychange', onHidden)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreen)
+      document.removeEventListener('visibilitychange', onHidden)
+    }
   }, [])
   useEffect(() => () => audioRef.current?.close(), [])
 
   useEffect(() => {
-    setWinner(null)
-    setPaused(false)
-    pausedRef.current = false
     window.scrollTo({ top: 0 })
     const canvas = canvasRef.current
     if (!canvas) return
     const context = canvas.getContext('2d')
     if (!context) return
-    const dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = ARENA.width * dpr
-    canvas.height = ARENA.height * dpr
-    context.setTransform(dpr, 0, 0, dpr, 0, 0)
+    let scale = 1
+    let viewHeight: number = ARENA.height
 
     const images = charas.map((chara) => {
       const image = new Image()
@@ -1104,40 +688,73 @@ function ClashPlay({
       return image
     }) as [HTMLImageElement, HTMLImageElement]
     const match = createClashMatch(charas[0].stats, charas[1].stats)
+    const renderer = createClashRenderer({
+      looks: charas,
+      images,
+      labels,
+      // 相手のホームで戦う。
+      stage: charas[1].season,
+      calm: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    })
+    // 表示枠の縦横比に合わせて、論理的な縦の広さと解像度を決める。
+    const fit = () => {
+      const width = canvas.clientWidth || ARENA.width
+      const height = canvas.clientHeight || ARENA.height
+      viewHeight = clamp(Math.round((ARENA.width * height) / width), ARENA.height, 1100)
+      const dpr = Math.min(2, window.devicePixelRatio || 1)
+      scale = clamp((width * dpr) / ARENA.width, 0.5, 2)
+      canvas.width = Math.round(ARENA.width * scale)
+      canvas.height = Math.round(viewHeight * scale)
+      renderer.resize(viewHeight, width < 520 ? 1.75 : width < 760 ? 1.3 : 1)
+      // 解像度を変えるとキャンバスが消えるので、その場で描き直す。
+      redraw?.()
+    }
+    let redraw: (() => void) | null = null
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(canvas)
+    const profile = CPU_PROFILES[level]
+    const cpus = [createClashCpu(0, profile), createClashCpu(1, profile)] as const
     const held: [ClashInput, ClashInput] = [emptyClashInput(), emptyClashInput()]
-    let cpuInput = emptyClashInput()
-    let cpuThink = 0
-    let particles: Particle[] = []
+    const sides: [SideStats, SideStats] = [
+      { damage: 0, kos: 0, combo: 0, parries: 0 },
+      { damage: 0, kos: 0, combo: 0, parries: 0 },
+    ]
     let lastEventId = 0
-    let shake = 0
-    let flash = 0
-    let resultReported = false
+    let fightFrames = 0
     let raf = 0
+    let resultTimer = 0
     let previous = performance.now()
     let accumulator = 0
     let time = 0
     const STEP = 1 / 60
     const audio = audioRef.current!
 
-    const targetForKey = (key: string): [0 | 1, keyof ClashInput] | null => {
+    const solo = mode !== 'local'
+    const targetForKey = (event: KeyboardEvent): [0 | 1, keyof ClashInput | 'jumpOnly'] | null => {
+      const key = event.key
       const lower = key.toLowerCase()
       if (lower === 'a') return [0, 'left']
       if (lower === 'd') return [0, 'right']
-      if (lower === 'w' || key === ' ') return [0, 'jumpHeld']
+      if (lower === 'w') return [0, 'jumpHeld']
+      if (key === ' ') return [0, 'jumpOnly']
       if (lower === 's') return [0, 'down']
       if (lower === 'j' || lower === 'z') return [0, 'attackPressed']
       if (lower === 'k' || lower === 'x') return [0, 'specialPressed']
       if (lower === 'l' || lower === 'c') return [0, 'shield']
-      const arrowPlayer: 0 | 1 = mode === 'cpu' ? 0 : 1
+      if (key === 'Shift' && solo) return [0, 'shield']
+      // 1人で遊ぶときは矢印キーも P1 の移動に使える。
+      const arrowPlayer: 0 | 1 = solo ? 0 : 1
       if (key === 'ArrowLeft') return [arrowPlayer, 'left']
       if (key === 'ArrowRight') return [arrowPlayer, 'right']
       if (key === 'ArrowUp') return [arrowPlayer, 'jumpHeld']
       if (key === 'ArrowDown') return [arrowPlayer, 'down']
-      if (lower === ',') return [1, 'attackPressed']
-      if (lower === '.') return [1, 'specialPressed']
-      if (lower === '/') return [1, 'shield']
+      if (key === ',') return [1, 'attackPressed']
+      if (key === '.') return [1, 'specialPressed']
+      if (key === '/') return [1, 'shield']
       return null
     }
+    const humanControls = (id: 0 | 1) => mode === 'local' || (mode === 'cpu' && id === 0)
     const onKeyDown = (event: KeyboardEvent) => {
       audio.unlock()
       if (event.key === 'Escape' || event.key.toLowerCase() === 'p') {
@@ -1145,47 +762,64 @@ function ClashPlay({
         event.preventDefault()
         return
       }
-      const target = targetForKey(event.key)
+      const target = targetForKey(event)
       if (!target) return
       const [id, action] = target
-      if (mode === 'cpu' && id === 1) return
-      if (
-        action === 'jumpHeld' ||
-        action === 'left' ||
-        action === 'right' ||
-        action === 'down' ||
-        action === 'shield'
-      ) {
-        held[id][action] = true
-        if (action === 'jumpHeld' && !event.repeat) {
-          held[id].jumpPressed = true
-          held[id].up = true
-        }
-        if (action === 'shield' && !event.repeat) held[id].shieldPressed = true
-      } else if (!event.repeat) {
-        held[id][action] = true
+      if (!humanControls(id)) return
+      event.preventDefault()
+      const input = held[id]
+      if (action === 'jumpOnly') {
+        input.jumpHeld = true
+        if (!event.repeat) input.jumpPressed = true
+      } else if (action === 'jumpHeld') {
+        // ↑ はジャンプと上入力を兼ねる。踏み切り中に攻撃を押せば上攻撃になる。
+        input.jumpHeld = true
+        input.up = true
+        if (!event.repeat) input.jumpPressed = true
+      } else if (action === 'left' || action === 'right' || action === 'down') {
+        input[action] = true
+      } else if (action === 'shield') {
+        input.shield = true
+        if (!event.repeat) input.shieldPressed = true
+      } else if (!event.repeat && (action === 'attackPressed' || action === 'specialPressed')) {
+        input[action] = true
       }
-      if (
-        event.key === ' ' ||
-        event.key.startsWith('Arrow') ||
-        [',', '.', '/'].includes(event.key)
-      ) {
-        event.preventDefault()
-      }
+    }
+    const jumpKeys: [Set<string>, Set<string>] = [new Set(), new Set()]
+    const trackJump = (event: KeyboardEvent, down: boolean) => {
+      const target = targetForKey(event)
+      if (!target) return
+      const [id, action] = target
+      if (action !== 'jumpOnly' && action !== 'jumpHeld') return
+      const key = event.key === ' ' ? 'space' : event.key.toLowerCase()
+      if (down) jumpKeys[id].add(key)
+      else jumpKeys[id].delete(key)
     }
     const onKeyUp = (event: KeyboardEvent) => {
-      const target = targetForKey(event.key)
+      trackJump(event, false)
+      const target = targetForKey(event)
       if (!target) return
       const [id, action] = target
-      if (action === 'jumpHeld') {
-        held[id].jumpHeld = false
-        held[id].up = false
+      const input = held[id]
+      if (action === 'jumpOnly' || action === 'jumpHeld') {
+        if (action === 'jumpHeld') input.up = false
+        input.jumpHeld = jumpKeys[id].size > 0
       } else if (action === 'left' || action === 'right' || action === 'down' || action === 'shield') {
-        held[id][action] = false
+        input[action] = false
       }
     }
-    window.addEventListener('keydown', onKeyDown)
+    const onKeyDownTracked = (event: KeyboardEvent) => {
+      trackJump(event, true)
+      onKeyDown(event)
+    }
+    const onBlur = () => {
+      for (const input of held) Object.assign(input, emptyClashInput())
+      jumpKeys[0].clear()
+      jumpKeys[1].clear()
+    }
+    window.addEventListener('keydown', onKeyDownTracked)
     window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
 
     const readHuman = (id: 0 | 1) => {
       const input = { ...held[id] }
@@ -1213,154 +847,103 @@ function ClashPlay({
       return input
     }
 
-    const addText = (x: number, y: number, text: string, color: string, size: number) => {
-      particles.push({
-        kind: 'text',
-        x,
-        y,
-        vx: 0,
-        vy: -62,
-        life: 0.8,
-        maxLife: 0.8,
-        color,
-        size,
-        text,
-      })
-    }
     const processEvent = (event: ClashEvent) => {
-      const humanWinner = event.type !== 'gameOver' || mode === 'local' || event.winner === 0
-      audio.play(event, humanWinner)
-      if (event.type === 'jump' || event.type === 'airJump') {
-        const color = charas[event.fighter].accentSoft
-        particles.push({
-          kind: 'ring',
-          x: event.x,
-          y: event.y - 8,
-          vx: 0,
-          vy: 0,
-          life: 0.34,
-          maxLife: 0.34,
-          color,
-          size: event.type === 'airJump' ? 34 : 24,
-        })
-        spawnBurst(particles, event.x, event.y, color, 8, 90, 0.32)
-      } else if (event.type === 'attack' && event.kind === 'rush') {
-        particles.push({
-          kind: 'ghost',
-          x: event.x,
-          y: event.y + 48,
-          vx: -match.fighters[event.fighter].facing * 80,
-          vy: 0,
-          life: 0.34,
-          maxLife: 0.34,
-          color: charas[event.fighter].accent,
-          size: 1,
-          fighter: event.fighter,
-        })
-      } else if (event.type === 'hit') {
-        const color = charas[event.attacker].accentSoft
-        spawnBurst(particles, event.x, event.y, color, event.power > 600 ? 34 : 22, event.power * 0.55)
-        particles.push({
-          kind: 'ring',
-          x: event.x,
-          y: event.y,
-          vx: 0,
-          vy: 0,
-          life: 0.38,
-          maxLife: 0.38,
-          color: '#fff',
-          size: clamp(event.power / 8, 32, 90),
-        })
-        addText(event.x, event.y - 36, `${event.damage}%`, '#fff', 24)
-        shake = clamp(event.power / 720, 0.2, 1.15)
-        flash = clamp(event.power / 1700, 0.1, 0.42)
-      } else if (event.type === 'shield') {
-        spawnBurst(particles, event.x, event.y, '#bdf5ff', 14, 150, 0.3)
-        addText(event.x, event.y - 44, 'BLOCK', '#d8fbff', 17)
-        shake = 0.24
-      } else if (event.type === 'shieldBreak') {
-        spawnBurst(particles, event.x, event.y, '#fff1a6', 38, 290, 0.72)
-        addText(event.x, event.y - 42, 'BREAK!', '#fff1a6', 28)
-        shake = 0.72
-        flash = 0.28
-      } else if (event.type === 'ko') {
-        const color = charas[event.fighter === 0 ? 1 : 0].accentSoft
-        spawnBurst(
-          particles,
-          clamp(event.x, 30, ARENA.width - 30),
-          clamp(event.y, 30, ARENA.height - 30),
-          color,
-          58,
-          520,
-          1,
-        )
-        addText(ARENA.width / 2, 205, 'STOCK LOST', '#fff', 34)
-        shake = 1.35
-        flash = 0.5
-      } else if (event.type === 'respawn') {
-        particles.push({
-          kind: 'ring',
-          x: event.x,
-          y: event.y,
-          vx: 0,
-          vy: 0,
-          life: 0.7,
-          maxLife: 0.7,
-          color: charas[event.fighter].accentSoft,
-          size: 72,
-        })
+      audio.play(event)
+      if (event.type === 'hit') {
+        sides[event.attacker].damage += event.damage
+        sides[event.attacker].combo = Math.max(sides[event.attacker].combo, event.combo)
+        // 決まる一撃かどうかは、当たった瞬間に先読みで分かる。
+        const lethal = predictKo(match, event.target)
+        const final = lethal && match.fighters[event.target].stocks === 1
+        renderer.onEvent(event, match, { lethal, final })
+        if (lethal) audio.cue(final ? 'finish' : 'lethal')
+        return
+      }
+      if (event.type === 'ko' && event.by != null) sides[event.by].kos += 1
+      if (event.type === 'parry') sides[event.target].parries += 1
+      renderer.onEvent(event, match)
+      if (event.type === 'gameOver') {
+        const playerWon = mode !== 'cpu' || event.winner === 0
+        resultTimer = window.setTimeout(() => {
+          audio.cue(playerWon ? 'win' : 'lose')
+          onResultRef.current(event.winner)
+          setResult({
+            winner: event.winner,
+            timeUp: event.timeUp,
+            seconds: fightFrames / 60,
+            sides,
+          })
+        }, 1900)
       }
     }
 
+    const tick = () => {
+      const firstInput = mode === 'watch' ? cpus[0].next(match) : readHuman(0)
+      const secondInput = mode === 'local' ? readHuman(1) : cpus[1].next(match)
+      stepClashMatch(match, [firstInput, secondInput], STEP)
+      if (match.phase === 'fight') fightFrames += 1
+      for (const event of match.events) {
+        if (event.id <= lastEventId) continue
+        lastEventId = event.id
+        processEvent(event)
+      }
+    }
+
+    const draw = () => {
+      context.setTransform(scale, 0, 0, scale, 0, 0)
+      renderer.render(context, match, time)
+    }
+    redraw = draw
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame)
       const frameDt = Math.min(0.08, (now - previous) / 1000)
       previous = now
       if (!pausedRef.current) {
-        accumulator += frameDt
         time += frameDt
-        while (accumulator >= STEP) {
-          const firstInput = readHuman(0)
-          let secondInput: ClashInput
-          if (mode === 'local') secondInput = readHuman(1)
-          else {
-            cpuThink -= STEP
-            if (cpuThink <= 0) {
-              cpuInput = cpuClashInput(match, 1, CPU_PROFILES[difficulty])
-              cpuThink = CPU_PROFILES[difficulty].reaction * (0.65 + Math.random() * 0.65)
+        let simDt = 0
+        if (!renderer.holding()) {
+          accumulator += frameDt * renderer.timeScale()
+          while (accumulator >= STEP) {
+            tick()
+            accumulator -= STEP
+            simDt += STEP
+            if (renderer.holding()) {
+              accumulator = 0
+              break
             }
-            secondInput = { ...cpuInput }
-            cpuInput.jumpPressed = false
-            cpuInput.attackPressed = false
-            cpuInput.specialPressed = false
-            cpuInput.shieldPressed = false
-          }
-          stepClashMatch(match, [firstInput, secondInput], STEP)
-          accumulator -= STEP
-          for (const event of match.events) {
-            if (event.id <= lastEventId) continue
-            processEvent(event)
-            lastEventId = event.id
-          }
-          particles = updateParticles(particles, STEP)
-          shake = Math.max(0, shake - STEP * 3.8)
-          flash = Math.max(0, flash - STEP * 2.5)
-          if (match.phase === 'result' && !resultReported) {
-            resultReported = true
-            window.setTimeout(() => setWinner(match.winner), 500)
           }
         }
+        renderer.update(match, frameDt, simDt)
       }
-      context.setTransform(dpr, 0, 0, dpr, 0, 0)
-      renderMatch(context, match, charas, images, particles, time, shake, flash, mode)
+      draw()
     }
     raf = requestAnimationFrame(frame)
+
+    if (import.meta.env.DEV) {
+      // 開発時の確認用。コンソールから試合を早送りして状態を読める。
+      ;(window as unknown as { __clash?: unknown }).__clash = {
+        match,
+        renderer,
+        step: (frames: number) => {
+          for (let i = 0; i < frames; i++) {
+            tick()
+            renderer.update(match, STEP, STEP)
+            time += STEP
+          }
+          draw()
+        },
+      }
+    }
+
     return () => {
       cancelAnimationFrame(raf)
-      window.removeEventListener('keydown', onKeyDown)
+      observer.disconnect()
+      window.clearTimeout(resultTimer)
+      window.removeEventListener('keydown', onKeyDownTracked)
       window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
     }
-  }, [charas, difficulty, mode, restartTick])
+  }, [charas, labels, level, mode])
 
   const toggleFullscreen = () => {
     if (document.fullscreenElement) {
@@ -1370,43 +953,56 @@ function ClashPlay({
     void shellRef.current?.requestFullscreen?.()
   }
 
-  const touchHandlers = (
-    key: 'left' | 'right' | 'up' | 'down' | 'jump' | 'attack' | 'special' | 'shield',
-  ) => ({
+  const touchButton = (key: 'jump' | 'attack' | 'special' | 'shield') => ({
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
       event.preventDefault()
-      event.currentTarget.setPointerCapture(event.pointerId)
+      capturePointer(event)
       audioRef.current?.unlock()
-      touchRef.current[key] = true
-      if (key === 'jump') touchRef.current.jumpEdge = true
-      if (key === 'attack') touchRef.current.attackEdge = true
-      if (key === 'special') touchRef.current.specialEdge = true
-      if (key === 'shield') touchRef.current.shieldEdge = true
+      const touch = touchRef.current
+      if (key === 'jump') {
+        touch.jump = true
+        touch.jumpEdge = true
+      } else if (key === 'shield') {
+        touch.shield = true
+        touch.shieldEdge = true
+      } else if (key === 'attack') touch.attackEdge = true
+      else touch.specialEdge = true
     },
     onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => {
       event.preventDefault()
-      touchRef.current[key] = false
+      if (key === 'jump') touchRef.current.jump = false
+      if (key === 'shield') touchRef.current.shield = false
     },
     onPointerCancel: () => {
-      touchRef.current[key] = false
+      if (key === 'jump') touchRef.current.jump = false
+      if (key === 'shield') touchRef.current.shield = false
     },
     onContextMenu: (event: React.MouseEvent) => event.preventDefault(),
   })
 
-  const winnerLabel = winner === 0 ? 'P1' : mode === 'cpu' ? 'CPU' : 'P2'
-  const playerWon = winner === 0
+  const winnerChara = result ? charas[result.winner] : null
+  const playerWon = result != null && (mode !== 'cpu' || result.winner === 0)
+  const statRows: [string, (side: SideStats) => string | number][] = [
+    [t('与えたダメージ'), (side) => `${side.damage}%`],
+    [t('撃墜'), (side) => side.kos],
+    [t('最大コンボ'), (side) => side.combo],
+    [t('ジャストガード'), (side) => side.parries],
+  ]
 
   return (
     <div
       ref={shellRef}
-      className={`clash-play${fullscreen ? ' is-fullscreen' : ''}`}
+      className={`clash-play${fullscreen ? ' is-fullscreen' : ''}${mode === 'watch' ? ' is-watch' : ''}`}
       onPointerDownCapture={() => audioRef.current?.unlock()}
     >
       <div className="clash-playbar">
         <button className="clash-playbar-back jp" onClick={onRoster}>
-          ← ファイター選択
+          {t('← ファイター選択')}
         </button>
-        <span className="clash-playbar-title mono">KISEKAE CLASH · 3 STOCK</span>
+        <span className="clash-playbar-title mono">
+          KISEKAE CLASH · {mode === 'local' ? '2P' : `CPU ${LEVEL_LABEL[level]}`}
+          {mode === 'cpu' && streak > 0 ? ` · ${t('{count}連勝中', { count: streak })}` : ''}
+        </span>
         <span className="clash-playbar-actions">
           <button onClick={() => setMuted(audioRef.current!.toggle())}>
             {muted ? 'SOUND OFF' : 'SOUND ON'}
@@ -1419,68 +1015,118 @@ function ClashPlay({
       </div>
       <div className="clash-canvas-wrap">
         <canvas ref={canvasRef} className="clash-canvas" />
-        {paused && winner == null && (
+        {paused && result == null && (
           <div className="clash-pause">
             <span className="mono">PAUSED</span>
             <button className="jp" onClick={() => setPaused(false)}>
-              つづける
+              {t('つづける')}
             </button>
           </div>
         )}
-        {winner != null && (
-          <div className={`clash-result${playerWon ? ' win' : ''}`}>
+      </div>
+      {result != null && winnerChara && (
+        <div
+          className={`clash-result${playerWon ? ' win' : ''}`}
+          style={{ '--fighter-color': winnerChara.accent } as React.CSSProperties}
+        >
+          <div className="clash-result-hero">
+            <img src={spriteUrl(winnerChara.key)} alt="" />
+          </div>
+          <div className="clash-result-body">
             <span className="clash-result-kicker mono">
-              {playerWon ? 'RUNWAY DOMINATED' : mode === 'cpu' ? 'NEXT LOOK, NEXT FIGHT' : 'MATCH COMPLETE'}
+              {result.timeUp ? 'TIME UP' : playerWon ? 'RUNWAY DOMINATED' : 'NEXT LOOK, NEXT FIGHT'}
             </span>
-            <span className="clash-result-winner mono">{winnerLabel} WINS</span>
-            <img src={spriteUrl(charas[winner].key)} alt="" />
-            <span className="clash-result-look mono">LOOK #{charas[winner].no ?? '—'}</span>
+            <span className="clash-result-winner mono">{labels[result.winner]} WINS</span>
+            <span className="clash-result-look mono">
+              LOOK #{winnerChara.no ?? '—'} · {Math.round(result.seconds)}s
+              {mode === 'cpu' && streak > 0 ? ` · ${t('{count}連勝中', { count: streak })}` : ''}
+              {mode === 'cpu' && best > 0 ? ` · BEST ${best}` : ''}
+            </span>
+            <table className="clash-result-stats">
+              <thead>
+                <tr>
+                  <th />
+                  <th className="mono">{labels[0]}</th>
+                  <th className="mono">{labels[1]}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statRows.map(([name, read]) => (
+                  <tr key={name}>
+                    <th className="jp">{name}</th>
+                    <td className="mono">{read(result.sides[0])}</td>
+                    <td className="mono">{read(result.sides[1])}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             <div className="clash-result-actions">
-              <button
-                className="primary jp"
-                onClick={() => {
-                  setWinner(null)
-                  setRestartTick((tick) => tick + 1)
-                }}
-              >
-                もう一戦
-              </button>
+              {mode === 'cpu' && result.winner === 0 ? (
+                <button className="primary jp" onClick={onNext}>
+                  {t('次の相手へ')}
+                </button>
+              ) : (
+                <button className="primary jp" onClick={onRematch}>
+                  {t('もう一戦')}
+                </button>
+              )}
+              {mode === 'cpu' && result.winner === 0 && (
+                <button className="jp" onClick={onRematch}>
+                  {t('同じ相手ともう一戦')}
+                </button>
+              )}
               <button className="jp" onClick={onRoster}>
-                ファイター選択
+                {t('ファイター選択')}
               </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <div className="clash-touch" aria-label="タッチ操作">
-          <div className="clash-dpad">
-            <button className="up" aria-label="上" {...touchHandlers('up')}>↑</button>
-            <button className="left" aria-label="左" {...touchHandlers('left')}>←</button>
-            <button className="down" aria-label="下" {...touchHandlers('down')}>↓</button>
-            <button className="right" aria-label="右" {...touchHandlers('right')}>→</button>
-          </div>
-          <button className="clash-touch-shield mono" {...touchHandlers('shield')}>GUARD</button>
-          <div className="clash-actions-pad">
-            <button className="jump mono" {...touchHandlers('jump')}><b>J</b><small>JUMP</small></button>
-            <button className="special mono" {...touchHandlers('special')}><b>B</b><small>SPECIAL</small></button>
-            <button className="attack mono" {...touchHandlers('attack')}><b>A</b><small>ATTACK</small></button>
+      {mode !== 'watch' && (
+        <div className="clash-touch">
+          <TouchStick touch={touchRef} label={t('移動スティック')} />
+          <div className="clash-pad">
+            <button className="guard mono" aria-label={t('ガード')} {...touchButton('shield')}>
+              <b>G</b>
+              <small>GUARD</small>
+            </button>
+            <button className="special mono" aria-label={t('必殺技')} {...touchButton('special')}>
+              <b>B</b>
+              <small>SPECIAL</small>
+            </button>
+            <button className="jump mono" aria-label={t('ジャンプ')} {...touchButton('jump')}>
+              <b>J</b>
+              <small>JUMP</small>
+            </button>
+            <button className="attack mono" aria-label={t('攻撃')} {...touchButton('attack')}>
+              <b>A</b>
+              <small>ATTACK</small>
+            </button>
           </div>
         </div>
-      </div>
-      <div className="clash-controls">
-        <span>
-          <b className="mono">P1</b>
-          <span className="jp"> A D 移動 · W/SPACE ジャンプ · S しゃがみ · J 攻撃 · K 必殺 · L ガード</span>
-        </span>
-        <span>
-          <b className="mono">{mode === 'cpu' ? 'TECH' : 'P2'}</b>
-          <span className="jp">
-            {mode === 'cpu'
-              ? '方向＋攻撃で強攻撃 · ↑＋必殺で復帰 · 空中で↓なら急降下'
-              : '← → 移動 · ↑ ジャンプ · ↓ しゃがみ · , 攻撃 · . 必殺 · / ガード'}
+      )}
+
+      {mode !== 'watch' && (
+        <div className="clash-controls">
+          <span>
+            <b className="mono">P1</b>
+            <span className="jp">
+              {mode === 'cpu'
+                ? t('A D / ← → 移動 · W / ↑ / SPACE ジャンプ · S / ↓ しゃがみ · J 攻撃 · K 必殺 · L ガード')
+                : t('A D 移動 · W / SPACE ジャンプ · S しゃがみ · J 攻撃 · K 必殺 · L ガード')}
+            </span>
           </span>
-        </span>
-      </div>
+          <span>
+            <b className="mono">{mode === 'cpu' ? 'TECH' : 'P2'}</b>
+            <span className="jp">
+              {mode === 'cpu'
+                ? t('直前ガードでジャストガード · ガード＋左右で回避 · 空中↓＋攻撃でメテオ · 崖はつかめる')
+                : t('← → 移動 · ↑ ジャンプ · ↓ しゃがみ · , 攻撃 · . 必殺 · / ガード')}
+            </span>
+          </span>
+        </div>
+      )}
     </div>
   )
 }

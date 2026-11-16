@@ -1,4 +1,4 @@
-// ゲーム別OGP画像 public/og-{memory,duel,platform,tower,chari,quiz}.png (1200x630) を生成する。
+// ゲーム別OGP画像 public/og-{memory,duel,platform,tower,chari,quiz,slot,shiki,kisekae}.png (1200x630) を生成する。
 // 素材はローカルの public/cutouts/*.webp（透過切り抜き）のみ。ネットワーク不要。
 // 各ゲームの実際の配色（カード裏の濃紺・季節色・Canvasのクリーム地など）を再現する。
 import { readFile } from 'node:fs/promises'
@@ -256,9 +256,189 @@ async function quiz() {
   await save('quiz', '#f1eee3', layers, title)
 }
 
-await memory()
-await duel()
-await platform()
-await tower()
-await chari()
-await quiz()
+// ---- 俺スロ: 暗い筐体のリール窓。中段に同じ俺が3人揃っている ----------------
+async function slot() {
+  const CELL_W = 190
+  const CELL_H = 250
+  const GAP = 16
+  const startX = Math.round((W - (CELL_W * 3 + GAP * 2)) / 2)
+  const midY = 180 // 中段の上端
+  const plate = (color, deep) =>
+    Buffer.from(`<svg width="${CELL_W}" height="${CELL_H}" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="p" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${color}"/><stop offset="1" stop-color="${deep}"/>
+      </linearGradient></defs>
+      <rect x="10" y="8" width="${CELL_W - 20}" height="${CELL_H - 16}" rx="24" fill="url(#p)"/>
+      <rect x="13" y="11" width="${CELL_W - 26}" height="${CELL_H - 22}" rx="21" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
+    </svg>`)
+  const RED = ['#ea5a3c', '#c53a22']
+  // 上段・下段はリールごとに違う色（＝揃っていない）
+  const others = [
+    [['#4c8fd0', '#3470ae'], ['#58ad7c', '#3d8c5f']],
+    [['#f0bb33', '#d6961a'], ['#a8a394', '#858072']],
+    [['#58ad7c', '#3d8c5f'], ['#46568c', '#2b3763']],
+  ]
+  const hero = await sprite(PICKS[0], 218)
+  const layers = [
+    {
+      input: svg(`
+        <rect x="${startX - 22}" y="0" width="${CELL_W * 3 + GAP * 2 + 44}" height="${H}" fill="#0d0d10"/>
+        ${[0, 1, 2]
+          .map((r) => `<rect x="${startX + r * (CELL_W + GAP)}" y="0" width="${CELL_W}" height="${H}" fill="#f1eee3"/>`)
+          .join('')}
+      `),
+      left: 0,
+      top: 0,
+    },
+  ]
+  for (let r = 0; r < 3; r++) {
+    const left = startX + r * (CELL_W + GAP)
+    const rows = [
+      { top: midY - CELL_H, colors: others[r][0], sp: await sprite(PICKS[1 + r * 2], 218) },
+      { top: midY, colors: RED, sp: hero },
+      { top: midY + CELL_H, colors: others[r][1], sp: await sprite(PICKS[2 + r * 2], 218) },
+    ]
+    for (const row of rows) {
+      const cell = await sharp(plate(...row.colors))
+        .composite([at(row.sp, CELL_W / 2, CELL_H / 2 + 4)])
+        .png()
+        .toBuffer()
+      // 画面外にはみ出す上下段は、見える範囲だけ切り出して貼る
+      const cut = Math.max(0, -row.top)
+      const height = Math.min(CELL_H - cut, H - Math.max(0, row.top))
+      const visible = await sharp(cell).extract({ left: 0, top: cut, width: CELL_W, height }).toBuffer()
+      layers.push({ input: visible, left, top: Math.max(0, row.top) })
+    }
+  }
+  // 上下段を沈めて中段を際立たせ、左右に中段の目印を置く
+  layers.push({
+    input: svg(`
+      <rect x="${startX - 22}" y="0" width="${CELL_W * 3 + GAP * 2 + 44}" height="${midY}" fill="rgba(13,13,16,0.62)"/>
+      <rect x="${startX - 22}" y="${midY + CELL_H}" width="${CELL_W * 3 + GAP * 2 + 44}" height="${H - midY - CELL_H}" fill="rgba(13,13,16,0.62)"/>
+      <path d="M ${startX - 58} ${midY + CELL_H / 2 - 20} l 30 20 l -30 20 Z" fill="#ea5a3c"/>
+      <path d="M ${startX + CELL_W * 3 + GAP * 2 + 58} ${midY + CELL_H / 2 - 20} l -30 20 l 30 20 Z" fill="#ea5a3c"/>
+      <circle cx="150" cy="150" r="74" fill="#ffd557"/>
+      <circle cx="150" cy="150" r="74" fill="none" stroke="#fff1bf" stroke-width="6"/>
+      <text x="150" y="182" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="88" font-weight="700" fill="#7a2a00">俺</text>
+    `),
+    left: 0,
+    top: 0,
+  })
+  const title = svg(`
+    <text x="60" y="${H - 78}" font-family="Helvetica, Arial, sans-serif" font-size="68" font-weight="600" fill="#fff" letter-spacing="8">俺スロ</text>
+    <text x="62" y="${H - 34}" font-family="Menlo, monospace" font-size="23" fill="#fff" opacity="0.85" letter-spacing="3">SLOT MACHINE</text>
+  `)
+  await save('slot', '#1b1b1f', layers, title)
+}
+
+// ---- 四季通勤: 春夏秋冬の街に、その季節に実際に着た服の切り抜きを立たせる ----
+async function shiki() {
+  const outfits = JSON.parse(await readFile(path.join(ROOT, 'src/data/outfits.json'), 'utf8'))
+  // 季節ごとに、その月に着た服から立ち姿の切り抜きを1体選ぶ（決定的）
+  const pickFor = (month) =>
+    outfits
+      .filter((o) => Number(o.date.slice(5, 7)) === month && keys.includes(o.key))
+      .sort((a, b) => (a.key < b.key ? -1 : 1))[0].key
+  const seasons = [
+    { key: pickFor(4), sky: ['#f6d9e4', '#fdf1ea'], ground: '#9bcb68', tree: '#f7bfd2', dot: '#ffffff', kind: 'petal' },
+    { key: pickFor(7), sky: ['#4f97e6', '#cfe8fb'], ground: '#6aab52', tree: '#58a04a', dot: '#ffffff', kind: 'cloud' },
+    { key: pickFor(11), sky: ['#f0a875', '#fbe2c4'], ground: '#b6a85e', tree: '#d9743a', dot: '#e3b23c', kind: 'petal' },
+    { key: pickFor(1), sky: ['#8f9db2', '#dfe6ec'], ground: '#e9eef0', tree: '#8a7460', dot: '#ffffff', kind: 'snow' },
+  ]
+  const PW = W / seasons.length
+  const groundY = 470
+  const rnd = (n) => {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453
+    return x - Math.floor(x)
+  }
+  const scene = svg(
+    seasons
+      .map((s, i) => {
+        const x0 = i * PW
+        const dots = Array.from({ length: 26 }, (_, k) => {
+          const x = x0 + rnd(i * 100 + k) * PW
+          const y = 30 + rnd(i * 200 + k) * (groundY - 60)
+          return s.kind === 'cloud'
+            ? ''
+            : `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${s.kind === 'snow' ? 4 : 3.2}" fill="${s.dot}" opacity="0.85"/>`
+        }).join('')
+        const cloud =
+          s.kind === 'cloud'
+            ? `<g fill="#ffffff" opacity="0.92"><circle cx="${x0 + 200}" cy="120" r="42"/><circle cx="${x0 + 240}" cy="138" r="34"/><circle cx="${x0 + 162}" cy="140" r="30"/><rect x="${x0 + 150}" y="140" width="110" height="30" rx="15"/></g>`
+            : ''
+        const bare = s.kind === 'snow'
+        const crown = bare
+          ? `<path d="M ${x0 + 62} 330 L ${x0 + 40} 270 M ${x0 + 62} 330 L ${x0 + 88} 262 M ${x0 + 62} 345 L ${x0 + 62} 255" stroke="${s.tree}" stroke-width="7" stroke-linecap="round"/>`
+          : `<g fill="${s.tree}"><circle cx="${x0 + 62}" cy="290" r="52"/><circle cx="${x0 + 28}" cy="318" r="34"/><circle cx="${x0 + 98}" cy="316" r="36"/></g>`
+        return `
+          <defs><linearGradient id="sk${i}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="${s.sky[0]}"/><stop offset="1" stop-color="${s.sky[1]}"/>
+          </linearGradient></defs>
+          <rect x="${x0}" y="0" width="${PW}" height="${groundY}" fill="url(#sk${i})"/>
+          <rect x="${x0 + 150}" y="${groundY - 190}" width="110" height="190" fill="#9fb0c2" opacity="0.55"/>
+          <rect x="${x0 + 215}" y="${groundY - 120}" width="85" height="120" fill="#e8d9bf" opacity="0.7"/>
+          ${cloud}
+          <rect x="${x0 + 56}" y="330" width="12" height="${groundY - 330}" fill="#6b4f3a"/>
+          ${crown}
+          ${dots}
+          <rect x="${x0}" y="${groundY}" width="${PW}" height="34" fill="#d8d3c6"/>
+          <rect x="${x0}" y="${groundY + 34}" width="${PW}" height="${H - groundY - 34}" fill="${s.ground}"/>`
+      })
+      .join(''),
+  )
+  const layers = [{ input: scene, left: 0, top: 0 }]
+  for (const [i, s] of seasons.entries()) {
+    const sp = await sprite(s.key, 290)
+    layers.push(at(sp, i * PW + PW * 0.56, groundY + 20 - sp.h / 2))
+  }
+  await save('shiki', '#cfe6fb', layers, darkTitle('四季通勤', 'WARDROBE STRATEGY'))
+}
+
+// ---- きせかえ: 固定の顔の下を、トップス・ボトムス・靴の帯が横にずれて流れる ----
+async function kisekae() {
+  const FIG_H = 430
+  const TOP = 22
+  const PITCH = 226
+  const CX = W / 2
+  // lib/kisekae.ts の BANDS と同じ割合で帯に切る
+  const edges = [0, 0.16, 0.5, 0.89, 1].map((f) => Math.round(f * FIG_H))
+  const band = async (key, k) => {
+    const sp = await sprite(key, FIG_H)
+    const buf = await sharp(sp.buf)
+      .extract({ left: 0, top: edges[k], width: sp.w, height: edges[k + 1] - edges[k] })
+      .toBuffer()
+    return { buf, w: sp.w }
+  }
+  const layers = [
+    {
+      input: svg(`
+        <rect x="${CX - PITCH / 2}" y="0" width="${PITCH}" height="${TOP + FIG_H + 14}" fill="#ffffff"/>
+        <path d="M ${CX - PITCH / 2} 0 V ${TOP + FIG_H + 14} M ${CX + PITCH / 2} 0 V ${TOP + FIG_H + 14}" stroke="#c8c8c6" stroke-width="2" stroke-dasharray="8 8"/>
+      `),
+      left: 0,
+      top: 0,
+    },
+  ]
+  const head = await band(PICKS[4], 0)
+  layers.push({ input: head.buf, left: Math.round(CX - head.w / 2), top: TOP })
+  // レーンごとに違う量だけ横へずらす（中央のコマだけが体の位置に止まっている）
+  const shifts = [0, -0.5, 0.5]
+  for (let lane = 0; lane < 3; lane++) {
+    for (let i = -3; i <= 3; i++) {
+      const cx = CX + (i + shifts[lane]) * PITCH
+      const part = await band(PICKS[(lane * 3 + i + 9) % 9], lane + 1)
+      const left = Math.round(cx - part.w / 2)
+      if (left < 0 || left + part.w > W) continue
+      layers.push({ input: part.buf, left, top: TOP + edges[lane + 1] })
+    }
+  }
+  await save('kisekae', '#f0f0ee', layers, darkTitle('きせかえ', 'MIX &amp; MATCH'))
+}
+
+// 引数でゲーム名を渡すと、そのゲームの画像だけ作り直す（例: node scripts/make-game-og.mjs slot）。
+// 引数なしなら全部。くり抜きが増えると選ばれる素材が変わるので、既存の画像を動かしたくないときは名前を指定する
+const GAMES = { memory, duel, platform, tower, chari, quiz, slot, shiki, kisekae }
+const only = process.argv.slice(2)
+for (const [name, make] of Object.entries(GAMES)) {
+  if (only.length === 0 || only.includes(name)) await make()
+}

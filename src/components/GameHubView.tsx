@@ -1,6 +1,7 @@
 import type { View } from '../App'
+import { useI18n } from '../lib/i18n'
 
-// 「ゲーム」タブの着地ページ。ここで神経衰弱／デュエルを選んでから各ゲームへ遷移する。
+// 「ゲーム」タブの着地ページ。ここでゲームを選んでから各ゲームへ遷移する。
 type Props = {
   onSelect: (view: View) => void
 }
@@ -11,6 +12,18 @@ const GAMES: { view: View; title: string; tag: string; lead: string }[] = [
     title: '着戦',
     tag: 'KISEKAE CLASH',
     lead: 'ダメージをためてステージ外へ吹っ飛ばす、出勤服の本格プラットフォーム対戦。CPU戦・2人対戦、全12ファイター。',
+  },
+  {
+    view: 'kisekae',
+    title: 'きせかえ',
+    tag: 'MIX & MATCH',
+    lead: '顔はそのまま、トップス・ボトムス・靴が横に流れてくる。スロットみたいに1つずつ止めてコーデを作り、kokiが着そうかどうかをアーカイブが判定する。',
+  },
+  {
+    view: 'shiki',
+    title: '四季通勤',
+    tag: 'WARDROBE STRATEGY',
+    lead: 'ほんとうにあった毎日を、当時の東京の気温のまま7着で着回す。3Dの街で春夏秋冬を生き抜き、夜は本物のkokiと答え合わせ。',
   },
   {
     view: 'memory',
@@ -48,21 +61,29 @@ const GAMES: { view: View; title: string; tag: string; lead: string }[] = [
     tag: 'PERSONALITY TEST',
     lead: '8つの質問で16タイプから診断。あなたにぴったりの出勤服が見つかる。あなたのkokiはこれ！',
   },
+  {
+    view: 'slot',
+    title: '俺スロ',
+    tag: 'SLOT MACHINE',
+    lead: '同じ俺を3人揃えるスロット。日替わりで並ぶ6人の俺から「最新の俺」を目押しで揃えてBIGを狙う。内部抽選とリール制御つき。',
+  },
 ]
 
 export default function GameHubView({ onSelect }: Props) {
+  const { t } = useI18n()
+
   return (
     <main className="game-hub">
       <div className="game-hub-inner">
-        <h2 className="game-hub-title jp">ゲーム</h2>
-        <p className="game-hub-sub jp">出勤服であそぶ。遊びたいゲームを選んでください。</p>
+        <h2 className="game-hub-title jp">{t('ゲーム')}</h2>
+        <p className="game-hub-sub jp">{t('出勤服であそぶ。遊びたいゲームを選んでください。')}</p>
         <div className="game-hub-grid">
           {GAMES.map((g) => (
             <button key={g.view} className="game-hub-card" onClick={() => onSelect(g.view)}>
               <span className="game-hub-tag mono">{g.tag}</span>
-              <span className="game-hub-name jp">{g.title}</span>
-              <span className="game-hub-lead jp">{g.lead}</span>
-              <span className="game-hub-go jp">あそぶ →</span>
+              <span className="game-hub-name jp">{t(g.title)}</span>
+              <span className="game-hub-lead jp">{t(g.lead)}</span>
+              <span className="game-hub-go jp">{t('あそぶ →')}</span>
             </button>
           ))}
         </div>

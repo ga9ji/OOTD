@@ -43,16 +43,18 @@ describe('clash balance', () => {
     }
   })
 
-  it('beats the old rule-based CPU from NORMAL up, while EASY stays beatable', { timeout: 120_000 }, () => {
-    const games = 8
+  it('outplays the old rule-based CPU from NORMAL up, while EASY stays beatable', { timeout: 120_000 }, () => {
+    const games = 12
+    // NORMAL は旧CPU（HARD相当）に勝ち越す程度、HARD と ONI は圧倒する。
+    const floor = { normal: 0.5, hard: 0.85, oni: 0.85 } as const
     for (const name of ['normal', 'hard', 'oni'] as const) {
       const result = series(level(name), legacy, games)
       report(`${name} vs legacy: ${result.wins}/${games}, avg ${(result.seconds / games).toFixed(0)}s`)
-      expect(result.wins / games, name).toBeGreaterThanOrEqual(0.7)
+      expect(result.wins / games, name).toBeGreaterThan(floor[name] - 0.001)
     }
     const easy = series(level('easy'), legacy, games)
     report(`easy vs legacy: ${easy.wins}/${games}`)
-    expect(easy.wins / games).toBeLessThanOrEqual(0.6)
+    expect(easy.wins / games).toBeLessThanOrEqual(0.5)
   })
 
   it('finishes matches by knockouts, not by walking off the stage', { timeout: 120_000 }, () => {

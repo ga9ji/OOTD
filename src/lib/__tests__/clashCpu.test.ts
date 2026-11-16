@@ -40,7 +40,7 @@ function strand(match: ClashMatch, x: number, y: number, jumpsLeft: number) {
 }
 
 describe('clash cpu', () => {
-  it('returns to the stage from deep offstage on every difficulty', () => {
+  it('returns to the stage from deep offstage on every difficulty when it does not blunder', () => {
     const right = ledgePoint('right')
     const spots: [number, number, number][] = [
       [right.x + 150, right.y + 170, 1],
@@ -50,7 +50,7 @@ describe('clash cpu', () => {
       // ステージの真下。外へ回り込んでから上がる必要がある。
       [right.x - 120, right.y + 190, 1],
     ]
-    for (const level of ['normal', 'hard', 'oni'] as const) {
+    for (const level of ['easy', 'normal', 'hard', 'oni'] as const) {
       for (const [x, y, jumps] of spots) {
         const match = beginMatch()
         // 相手は反対側の端で何もしない。
@@ -90,21 +90,26 @@ describe('clash cpu', () => {
     expect(input.right).toBe(false)
   })
 
-  it('punishes an opponent stuck in a long recovery animation', () => {
+  it('punishes an opponent while they are still stuck in a whiffed attack', () => {
     const match = beginMatch()
     const [player, cpu] = match.fighters
     player.x = 600
-    cpu.x = 680
-    // 相手は大振りを空振りして隙だらけ。
+    cpu.x = 690
+    // 相手は背中を向けて大振りを空振りしている最中。
     player.facing = -1
-    player.action = { kind: 'smash', time: 0.3, hit: false }
+    player.action = { kind: 'smash', time: 0.1, hit: false }
     const plan = chooseClashPlan(match, 1, { ...CPU_PROFILES.oni, noise: 0 }, seeded(3))
     let hit = false
+    let stillBusy = false
     for (let frame = 0; frame < 40 && !hit; frame++) {
+      stillBusy = player.action != null
       stepClashMatch(match, [emptyClashInput(), plan.input(frame, cpu)], DT)
       hit = match.events.some((event) => event.type === 'hit' && event.attacker === 1)
     }
     expect(hit).toBe(true)
+    // 硬直が解けたあとではなく、隙のあいだに当てている。
+    expect(stillBusy).toBe(true)
+    expect(cpu.percent).toBe(0)
   })
 
   it('cannot react to a jab it has not had time to see, but guards a slow smash', () => {
@@ -146,6 +151,10 @@ describe('clash cpu', () => {
   })
 
   it('stays idle outside the fight and while knocked out', () => {
+    const fighting = beginMatch()
+    fighting.fighters[1].respawn = 0.5
+    expect(createClashCpu(1, CPU_PROFILES.oni, seeded(1)).next(fighting)).toEqual(emptyClashInput())
+
     const match = createClashMatch(DEFAULT_STATS, DEFAULT_STATS)
     const brain = createClashCpu(1, CPU_PROFILES.oni, seeded(1))
     expect(brain.next(match)).toEqual(emptyClashInput())

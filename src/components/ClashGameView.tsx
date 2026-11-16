@@ -196,6 +196,13 @@ export default function ClashGameView({ data, onBack }: Props) {
     [level, mode],
   )
 
+  // 対戦ループの effect はこの配列に依存する。毎回作り直すと、連勝数や表示言語が変わるたびに
+  // 結果画面の裏で試合が最初から始まってしまうので、選択が変わったときだけ作り直す。
+  const charas = useMemo<[ClashChara, ClashChara]>(
+    () => [roster[selected[0]], roster[selected[1]]],
+    [roster, selected],
+  )
+
   if (roster.length < 2) {
     return (
       <main className="clash">
@@ -241,7 +248,7 @@ export default function ClashGameView({ data, onBack }: Props) {
       ) : (
         <ClashPlay
           key={matchKey}
-          charas={[roster[selected[0]], roster[selected[1]]]}
+          charas={charas}
           mode={mode}
           level={level}
           streak={streak}
@@ -756,6 +763,9 @@ function ClashPlay({
     }
     const humanControls = (id: 0 | 1) => mode === 'local' || (mode === 'cpu' && id === 0)
     const onKeyDown = (event: KeyboardEvent) => {
+      // ブラウザのショートカット（Cmd+L など）は奪わない。macOS は Cmd 中のキーの keyup を
+      // 送らないので、拾ってしまうと押しっぱなしにもなる。
+      if (event.metaKey || event.ctrlKey || event.altKey) return
       audio.unlock()
       if (event.key === 'Escape' || event.key.toLowerCase() === 'p') {
         if (!event.repeat) setPaused((current) => !current)
@@ -800,6 +810,8 @@ function ClashPlay({
       const target = targetForKey(event)
       if (!target) return
       const [id, action] = target
+      // フォーカスの残ったボタンが、スペースを離した拍子に押されるのを防ぐ。
+      if (humanControls(id)) event.preventDefault()
       const input = held[id]
       if (action === 'jumpOnly' || action === 'jumpHeld') {
         if (action === 'jumpHeld') input.up = false
@@ -809,7 +821,7 @@ function ClashPlay({
       }
     }
     const onKeyDownTracked = (event: KeyboardEvent) => {
-      trackJump(event, true)
+      if (!event.metaKey && !event.ctrlKey && !event.altKey) trackJump(event, true)
       onKeyDown(event)
     }
     const onBlur = () => {

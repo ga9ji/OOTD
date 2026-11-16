@@ -255,14 +255,18 @@ describe('guard, just guard and dodges', () => {
 })
 
 describe('seasonal specials', () => {
-  it('spring throws two light petals that cannot hit the same fighter twice', () => {
+  it('spring throws two light petals, each of which hits at most once', () => {
     const match = beginMatch('spring')
     face(match, 430, 710)
     press(match, 60, { specialPressed: true })
 
     expect(events(match, 'projectile').map((event) => event.kind)).toEqual(['petal', 'petal'])
-    expect(match.fighters[1].percent).toBeGreaterThan(0)
-    expect(match.fighters[1].percent).toBeLessThanOrEqual(10)
+    const hits = events(match, 'hit')
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits.length).toBeLessThanOrEqual(2)
+    expect(match.fighters[1].percent).toBe(hits.length * 5)
+    // 当たった花びらは消える。
+    expect(match.projectiles.length).toBeLessThanOrEqual(2 - hits.length)
   })
 
   it('summer burns a wide area in front instead of shooting', () => {
@@ -341,6 +345,7 @@ describe('stage, ledges and recovery', () => {
     step(match, 1)
     expect(target.stocks).toBe(2)
     expect(target.respawn).toBeGreaterThan(0)
+    expect(target.percent).toBe(0)
     expect(events(match, 'ko')[0]).toMatchObject({ side: 'right', by: 0, final: false })
 
     target.stocks = 1
@@ -351,6 +356,47 @@ describe('stage, ledges and recovery', () => {
     expect(match.phase).toBe('result')
     expect(match.winner).toBe(0)
     expect(events(match, 'ko')[1]).toMatchObject({ side: 'left', by: null, final: true })
+  })
+
+  it('lets the lower-damage fighter win when both fall on their last stock at once', () => {
+    const match = beginMatch()
+    const [first, second] = match.fighters
+    first.stocks = second.stocks = 1
+    first.percent = 150
+    second.percent = 20
+    first.x = ARENA.blast.left - 1
+    second.x = ARENA.blast.right + 1
+    step(match, 1)
+
+    expect(match.winner).toBe(1)
+    expect(match.fighters.map((fighter) => fighter.stocks)).toEqual([0, 1])
+
+    // 席順ではなく蓄積で決まる。入れ替えれば 1P が勝つ。
+    const mirror = beginMatch()
+    mirror.fighters[0].stocks = mirror.fighters[1].stocks = 1
+    mirror.fighters[0].percent = 20
+    mirror.fighters[1].percent = 150
+    mirror.fighters[0].x = ARENA.blast.left - 1
+    mirror.fighters[1].x = ARENA.blast.right + 1
+    step(mirror, 1)
+    expect(mirror.winner).toBe(0)
+  })
+
+  it('stops crediting a knockout once the victim has recovered on the ground', () => {
+    const fall = (restFrames: number) => {
+      const match = beginMatch()
+      face(match, 580, 642)
+      press(match, 12, { attackPressed: true })
+      const target = match.fighters[1]
+      // 着地して立て直してから、自分で場外へ出る。
+      step(match, restFrames)
+      expect(target.onGround).toBe(true)
+      target.x = ARENA.blast.right + 1
+      step(match, 1)
+      return events(match, 'ko')[0].by
+    }
+    expect(fall(60)).toBe(0)
+    expect(fall(60 * 5)).toBeNull()
   })
 
   it('limits air jumps and refreshes them after landing', () => {
@@ -413,6 +459,26 @@ describe('stage, ledges and recovery', () => {
     expect(player.ledge).toBeNull()
     expect(player.onGround).toBe(true)
     expect(player.x).toBeGreaterThan(point.x)
+  })
+
+  it('hops onto the stage from the ledge with a jump, however briefly it is pressed', () => {
+    for (const held of [{}, { jumpHeld: true }, { right: true }]) {
+      const match = beginMatch()
+      const player = match.fighters[0]
+      const point = ledgePoint('left')
+      player.x = point.x - 40
+      player.y = point.y - 30
+      player.vx = 0
+      player.vy = 200
+      player.onGround = false
+      step(match, 30)
+      expect(player.ledge).toBe('left')
+
+      press(match, 60, { jumpPressed: true }, {}, [held, {}])
+      expect(player.ledge, JSON.stringify(held)).toBeNull()
+      expect(player.onGround, JSON.stringify(held)).toBe(true)
+      expect(player.x, JSON.stringify(held)).toBeGreaterThan(point.x - PHYSICS.fighterW / 2)
+    }
   })
 
   it('lets go of the ledge instead of grabbing while holding away from the stage', () => {
@@ -496,5 +562,15 @@ describe('stage, ledges and recovery', () => {
     expect(match.phase).toBe('result')
     expect(match.winner).toBe(0)
     expect(events(match, 'gameOver')[0].timeUp).toBe(true)
+
+    // ストックが多ければ、蓄積が多くても勝つ。
+    const byStocks = beginMatch()
+    byStocks.clock = 0.02
+    byStocks.fighters[0].stocks = 1
+    byStocks.fighters[0].percent = 10
+    byStocks.fighters[1].stocks = 2
+    byStocks.fighters[1].percent = 140
+    step(byStocks, 3)
+    expect(byStocks.winner).toBe(1)
   })
 })

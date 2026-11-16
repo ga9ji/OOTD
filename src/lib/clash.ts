@@ -145,6 +145,8 @@ export type Fighter = {
   ledge: LedgeSide | null
   ledgeTime: number
   ledgeCooldown: number
+  /** 崖ジャンプの直後。この間は小ジャンプに化けず、壁でも内向きの勢いを失わない。 */
+  ledgeHop: number
   /** 着地せずに崖をつかんだ回数。無敵がつくのは最初の1回だけ。 */
   ledgeGrabs: number
   /** 冬の必殺技を受けたあとの「かじかみ」。移動とジャンプが鈍る。 */
@@ -154,6 +156,8 @@ export type Fighter = {
   prevDown: boolean
   stats: FighterStats
   lastHitBy: 0 | 1 | null
+  /** 撃墜の手柄が残る時間。地上で立て直してしばらくすると消え、そのあと落ちれば自滅になる。 */
+  credit: number
 }
 
 export type ProjectileKind = 'petal' | 'leaf' | 'frost'
@@ -437,6 +441,8 @@ const NEUTRAL_COOLDOWN: Record<ClashKit, number> = {
 /** ガードを張ってからこの時間内に受けるとジャストガード。 */
 export const PARRY_WINDOW = 0.1
 const PARRY_LOCK = 0.3
+/** 殴られてから地上でこれだけ過ごすと、そのあとの落下は自滅として数える。 */
+const HIT_CREDIT = 3
 const PARRY_STAGGER = 0.5
 const CHILL_TIME = 1.6
 const CHILL_FACTOR = 0.72
@@ -452,7 +458,7 @@ export const LEDGE = {
   reachX: 70,
   reachTop: 24,
   reachBottom: 118,
-  hangX: 18,
+  hangX: 26,
   hangY: 80,
   minHang: 0.14,
   holdToClimb: 0.45,
@@ -526,6 +532,7 @@ function createFighter(id: 0 | 1, stats: FighterStats, stocks: number): Fighter 
     ledge: null,
     ledgeTime: 0,
     ledgeCooldown: 0,
+    ledgeHop: 0,
     ledgeGrabs: 0,
     chill: 0,
     combo: 0,
@@ -533,6 +540,7 @@ function createFighter(id: 0 | 1, stats: FighterStats, stocks: number): Fighter 
     prevDown: false,
     stats: { ...stats },
     lastHitBy: null,
+    credit: 0,
   }
 }
 
@@ -853,6 +861,8 @@ function collideMainBody(fighter: Fighter, previousX: number, previousY: number)
   if (right <= body.x || left >= body.x + body.w) return
   if (fighter.y <= body.y + 1 || top >= body.y + body.h) return
   const stunned = fighter.hitstun > 0
+  // 崖から跳びのる途中は、壁に触れても内向きの勢いを残す（上面を越えたらそのまま乗れる）。
+  const hopping = fighter.ledgeHop > 0 && !stunned
   if (previousY - FIGHTER_H >= body.y + body.h - 2) {
     fighter.y = body.y + body.h + FIGHTER_H
     if (fighter.vy < 0) fighter.vy = stunned ? -fighter.vy * 0.45 : 0
@@ -864,10 +874,10 @@ function collideMainBody(fighter: Fighter, previousX: number, previousY: number)
   else side = fighter.x < body.x + body.w / 2 ? -1 : 1
   if (side < 0) {
     fighter.x = body.x - HALF_W
-    if (fighter.vx > 0) fighter.vx = stunned ? -fighter.vx * 0.5 : 0
+    if (fighter.vx > 0 && !hopping) fighter.vx = stunned ? -fighter.vx * 0.5 : 0
   } else {
     fighter.x = body.x + body.w + HALF_W
-    if (fighter.vx < 0) fighter.vx = stunned ? -fighter.vx * 0.5 : 0
+    if (fighter.vx < 0 && !hopping) fighter.vx = stunned ? -fighter.vx * 0.5 : 0
   }
 }
 
@@ -950,6 +960,7 @@ function updateLedge(match: ClashMatch, fighter: Fighter, input: ClashInput, dir
   } else if (fighter.jumpBuffer > 0) {
     fighter.ledge = null
     fighter.ledgeCooldown = 0.5
+    fighter.ledgeHop = 0.4
     fighter.jumpBuffer = 0
     fighter.vy = -JUMP_SPEED * fighter.stats.jump
     fighter.vx = toward * 150
@@ -1003,6 +1014,7 @@ function updateFighter(
   fighter.specialCooldown = Math.max(0, fighter.specialCooldown - dt)
   fighter.dropThrough = Math.max(0, fighter.dropThrough - dt)
   fighter.ledgeCooldown = Math.max(0, fighter.ledgeCooldown - dt)
+  fighter.ledgeHop = Math.max(0, fighter.ledgeHop - dt)
   fighter.parryLock = Math.max(0, fighter.parryLock - dt)
   fighter.chill = Math.max(0, fighter.chill - dt)
   fighter.jumpBuffer = Math.max(0, fighter.jumpBuffer - dt)
@@ -1029,6 +1041,11 @@ function updateFighter(
       emit(match, { type: 'respawn', fighter: fighter.id, x: fighter.x, y: fighter.y })
     }
     return
+  }
+
+  if (fighter.lastHitBy != null && fighter.onGround && fighter.hitstun <= 0) {
+    fighter.credit -= dt
+    if (fighter.credit <= 0) fighter.lastHitBy = null
   }
 
   bufferInput(fighter, input)
@@ -1206,6 +1223,7 @@ function updateFighter(
     !input.jumpHeld &&
     fighter.vy < -260 &&
     fighter.hitstun <= 0 &&
+    fighter.ledgeHop <= 0 &&
     fighter.action?.kind !== 'recovery'
   ) {
     fighter.vy += 1900 * dt
@@ -1275,6 +1293,7 @@ function applyHit(
   target.hitstun = clamp(0.13 + launch / 1150, 0.16, 0.92)
   target.invuln = 0.08
   target.squat = 0
+  target.ledgeHop = 0
   leaveGround(target)
   target.action = null
   target.dodge = null
@@ -1284,6 +1303,7 @@ function applyHit(
   target.shieldStun = 0
   target.usedRecovery = false
   target.lastHitBy = attacker.id
+  target.credit = HIT_CREDIT
   if (spec.chill) target.chill = spec.chill
   emit(match, {
     type: 'hit',
@@ -1411,6 +1431,7 @@ function knockOut(match: ClashMatch, fighter: Fighter, side: BlastSide) {
   fighter.vx = 0
   fighter.vy = 0
   fighter.combo = 0
+  fighter.percent = 0
   const final = fighter.stocks <= 0
   emit(match, {
     type: 'ko',
@@ -1440,10 +1461,22 @@ function blastSide(fighter: Fighter): BlastSide | null {
 }
 
 function checkBlastZones(match: ClashMatch) {
+  const out: { fighter: Fighter; side: BlastSide }[] = []
   for (const fighter of match.fighters) {
     if (fighter.respawn > 0 || fighter.stocks <= 0) continue
     const side = blastSide(fighter)
-    if (side) knockOut(match, fighter, side)
+    if (side) out.push({ fighter, side })
+  }
+  // 最後の1ストックどうしが同じフレームに落ちたら、蓄積の多い側だけを負けにする
+  // （席順で勝敗が決まらないように。同率は時間切れと同じく 1P の勝ち）。
+  if (out.length === 2 && out.every((entry) => entry.fighter.stocks === 1)) {
+    const [first, second] = out
+    const loser = first.fighter.percent > second.fighter.percent ? first : second
+    knockOut(match, loser.fighter, loser.side)
+    return
+  }
+  for (const { fighter, side } of out) {
+    knockOut(match, fighter, side)
     if (match.winner !== null) return
   }
 }

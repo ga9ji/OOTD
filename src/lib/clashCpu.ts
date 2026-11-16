@@ -674,9 +674,9 @@ export function createClashCpu(
         }
         frame = 0
         wait = Math.max(2, Math.round(profile.reaction * 60 * (0.7 + 0.6 * random())))
-        // 読みは「読み切った先では考え直す」前提なので、考え直しが読みの深さより遅れてはいけない。
-        // 場外では一瞬の遅れが命取りになるぶん、誰でも集中する。
-        wait = Math.min(wait, isOffstage(me) ? 8 : profile.horizon - 2)
+        // 場外では一瞬の遅れが命取りになるぶん、誰でも集中する（読みも「決着までは定石で戻る」
+        // 前提なので、考え直しがそれより遅れてはいけない）。
+        if (isOffstage(me)) wait = Math.min(wait, 8)
       }
       wait -= 1
       return base.input(offset + frame++, me)

@@ -10121,6 +10121,7 @@ html.dark .kk-column {
   .kk-final {
     animation: none;
   }
+}
 
 /* 個別ゲーム共通: iOS/Androidの長押し選択・コールアウト・画像ドラッグを抑止。
    ボタンやリンクのクリックはイベント側の除外ルールで通常どおり動作する。 */

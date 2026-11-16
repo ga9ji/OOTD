@@ -1073,7 +1073,7 @@ export const EN: Record<string, string> = {
   // KISEKAE CLASH
   '着戦': 'KISEKAE CLASH',
   '着戦 KISEKAE CLASH': 'KISEKAE CLASH',
-  'ダメージをためてステージの外へ吹っ飛ばす対戦アクション。試合をまるごと先読みしてくるCPUに、崖・回避・ジャストガードで挑む。全12ファイター。': 'A platform fighter where you build damage and launch your opponent off the stage. Take on a CPU that simulates the match ahead, using ledges, dodges, and just guards. 12 fighters.',
+  'ダメージをためてステージの外へ吹っ飛ばす対戦アクション。試合をまるごと先読みしてくるCPUに、崖・回避・ジャストガードで挑む。ファイターの性能は、その服の季節と色で変わる。': 'A platform fighter where you build damage and launch your opponent off the stage. Take on a CPU that simulates the match ahead, using ledges, dodges, and just guards. Fighter stats come from the season and color of each outfit.',
   'ダメージをためて、ステージの外へ吹っ飛ばせ。先読みするCPUと戦う、3ストックの出勤服バトル。': 'Build damage and launch them off the stage. A 3-stock outfit battle against a CPU that reads ahead.',
   '← ゲーム選択にもどる': '← Back to games',
   '対戦モード': 'Match mode',
@@ -1089,7 +1089,8 @@ export const EN: Record<string, string> = {
   'こちらの次の一手まで読んでくる。': 'Reads even your next move.',
   '{count}連勝': '{count} wins in a row',
   '{count}連勝中': '{count}-win streak',
-  'ファイターを選ぶ': 'Choose a fighter',
+  'ファイターを選ぶ（全{count}着）': 'Choose a fighter ({count} looks)',
+  '季節でしぼる': 'Filter by season',
   '対戦をはじめる': 'Start the match',
   '観戦をはじめる': 'Start watching',
   '相手は毎試合おまかせ。ここを押すと自分で選べる。': 'A random opponent every match. Tap here to pick one yourself.',

@@ -23,7 +23,7 @@ const GAMES: { view: View; title: string; tag: string; lead: string }[] = [
     view: 'clash',
     title: '着戦',
     tag: 'KISEKAE CLASH',
-    lead: 'ダメージをためてステージの外へ吹っ飛ばす対戦アクション。試合をまるごと先読みしてくるCPUに、崖・回避・ジャストガードで挑む。全12ファイター。',
+    lead: 'ダメージをためてステージの外へ吹っ飛ばす対戦アクション。試合をまるごと先読みしてくるCPUに、崖・回避・ジャストガードで挑む。ファイターの性能は、その服の季節と色で変わる。',
   },
   {
     view: 'slot',

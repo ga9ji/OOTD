@@ -16,7 +16,14 @@ import {
   predictKo,
   recoveryInput,
 } from '../clashCpu'
-import { CLASH_COLORS, CLASH_KITS, clashStats, clashType } from '../clashRoster'
+import {
+  CLASH_COLORS,
+  CLASH_KITS,
+  clashStats,
+  clashType,
+  fitsFighterBox,
+  pickClashRoster,
+} from '../clashRoster'
 import { DT, seeded } from './clashBots'
 
 function beginMatch(): ClashMatch {
@@ -172,8 +179,43 @@ describe('clash roster', () => {
           expect(stats[key], `${kit}/${color}/${key}`).toBeLessThanOrEqual(1.25)
         }
         expect([1, 2]).toContain(stats.airJumps)
-        expect(['SPEED', 'POWER', 'AIR', 'HEAVY']).toContain(clashType(stats))
+        expect(['SPEED', 'POWER', 'AIR', 'HEAVY', 'BALANCE']).toContain(clashType(stats))
       }
     }
+  })
+
+  it('names the type after what actually stands out, not one label for everyone', () => {
+    expect(clashType(clashStats('summer', 'yellow'))).toBe('SPEED')
+    expect(clashType(clashStats('winter', 'navy'))).toBe('HEAVY')
+    expect(clashType(clashStats('spring', 'green'))).toBe('AIR')
+    expect(clashType(clashStats('autumn', 'black'))).toBe('POWER')
+    const types = new Set(
+      CLASH_KITS.flatMap((kit) => CLASH_COLORS.map((color) => clashType(clashStats(kit, color)))),
+    )
+    expect(types.size).toBeGreaterThanOrEqual(4)
+  })
+
+  it('picks the newest person-shaped look for each season and color', () => {
+    const look = (key: string, season: (typeof CLASH_KITS)[number], color: string | undefined, ratio = 0.38) => ({
+      key,
+      season,
+      color,
+      ratio,
+    })
+    // 新しい順。
+    const roster = pickClashRoster([
+      look('bike', 'winter', 'navy', 0.95),
+      look('w-navy-new', 'winter', 'navy'),
+      look('w-navy-old', 'winter', 'navy'),
+      look('s-red', 'spring', 'red'),
+      look('w-black', 'winter', 'black'),
+      look('s-none', 'spring', undefined),
+      look('s-red-old', 'spring', 'red'),
+      look('two-people', 'summer', 'white', 0.8),
+    ])
+    // 季節の順に並び、同じ季節×色は新しい1着だけ。幅の広いくり抜きは使わない。
+    expect(roster.map((entry) => entry.key)).toEqual(['s-red', 's-none', 'w-navy-new', 'w-black'])
+    expect(fitsFighterBox(0.38)).toBe(true)
+    expect(fitsFighterBox(0.95)).toBe(false)
   })
 })

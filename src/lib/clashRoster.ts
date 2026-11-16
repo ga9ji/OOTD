@@ -51,16 +51,21 @@ export function clashStats(season: ClashKit, color?: string): FighterStats {
   return stats
 }
 
-export type ClashType = 'SPEED' | 'POWER' | 'AIR' | 'HEAVY'
+export type ClashType = 'SPEED' | 'POWER' | 'AIR' | 'HEAVY' | 'BALANCE'
 
+/**
+ * いちばん尖っている性能でタイプを呼ぶ。標準値（1）からの伸びで比べる
+ * （素の値で比べると、係数の大きい AIR が必ず勝って全員 AIR になる）。
+ */
 export function clashType(stats: FighterStats): ClashType {
   const scored: [ClashType, number][] = [
-    ['SPEED', stats.speed + stats.airControl * 0.3],
-    ['POWER', stats.power + stats.weight * 0.22],
-    ['AIR', stats.jump + stats.airControl * 0.5 + (stats.airJumps - 1) * 0.4],
-    ['HEAVY', stats.weight + stats.power * 0.2],
+    ['SPEED', stats.speed - 1 + (stats.airControl - 1) * 0.3],
+    ['POWER', stats.power - 1 + (stats.weight - 1) * 0.2],
+    ['AIR', stats.jump - 1 + (stats.airControl - 1) * 0.5 + (stats.airJumps - 1) * 0.1],
+    ['HEAVY', stats.weight - 1 + (stats.power - 1) * 0.2],
   ]
-  return scored.sort((a, b) => b[1] - a[1])[0][0]
+  const [type, score] = scored.sort((a, b) => b[1] - a[1])[0]
+  return score < 0.05 ? 'BALANCE' : type
 }
 
 export const CLASH_COLORS = [
@@ -78,3 +83,37 @@ export const CLASH_COLORS = [
   'pink',
   'purple',
 ] as const
+
+export type RosterCandidate = {
+  key: string
+  season: ClashKit
+  color?: string
+  /** くり抜きの横÷縦。 */
+  ratio: number
+}
+
+/**
+ * 人ひとりぶんの幅に収まるくり抜きか。自転車や二人写りは見た目が当たり判定（幅48）から
+ * 大きくはみ出すので、ファイターには使わない。
+ */
+export const fitsFighterBox = (ratio: number) => ratio >= 0.2 && ratio <= 0.6
+
+/**
+ * ファイターを選ぶ。性能は「季節×代表色」で決まるので、その組み合わせごとに1着ずつ採る
+ * （同じ効果の色もあるので、性能まで全員ばらばらというわけではない）。
+ * `candidates` は新しい順に渡す。各組み合わせでいちばん新しい着になる。
+ */
+export function pickClashRoster<T extends RosterCandidate>(candidates: T[]): T[] {
+  const roster: T[] = []
+  for (const season of CLASH_KITS) {
+    const seen = new Set<string>()
+    for (const candidate of candidates) {
+      if (candidate.season !== season || !fitsFighterBox(candidate.ratio)) continue
+      const color = candidate.color ?? ''
+      if (seen.has(color)) continue
+      seen.add(color)
+      roster.push(candidate)
+    }
+  }
+  return roster
+}

@@ -11239,6 +11239,84 @@ html.dark .kk-column {
   letter-spacing: 0.1em;
 }
 
+.clash-roster-head {
+  flex-wrap: wrap;
+}
+
+.clash-roster-filter {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.clash-roster-filter button {
+  padding: 6px 12px;
+  color: var(--clash-muted);
+  border: 1px solid var(--clash-line);
+  background: transparent;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.clash-roster-filter button.active {
+  color: #fff;
+  border-color: rgba(187, 165, 255, 0.58);
+  background: rgba(158, 123, 255, 0.2);
+}
+
+/* ファイターが増えて一覧が長くなるので、開始ボタンは画面の下に貼りつけておく。 */
+.clash-ready {
+  position: sticky;
+  z-index: 5;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+}
+
+/* 狭い画面では、右下の「トップへ」ボタンと重ならないように開始ボタンを左へ寄せる。 */
+@media (max-width: 760px) {
+  .clash-ready {
+    width: calc(100% - 58px);
+    margin-right: auto;
+    margin-left: 0;
+  }
+}
+
+@media (min-width: 521px) and (max-width: 760px) {
+  .clash-roster {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* スマホではファイター一覧を3列に詰める（2列だと47着で画面8枚ぶんの長さになる）。 */
+@media (max-width: 520px) {
+  .clash-roster {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .clash-roster-card {
+    min-height: 172px;
+  }
+
+  .clash-roster-figure {
+    height: 108px;
+  }
+
+  .clash-roster-figure img {
+    height: 106px;
+  }
+
+  .clash-roster-filter {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .clash-roster-filter button {
+    flex: 1;
+    padding: 8px 4px;
+  }
+}
+
 /* ---- 着戦: 対戦画面 ---- */
 
 .clash-play {

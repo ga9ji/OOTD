@@ -13,7 +13,14 @@ import {
 import { createClashAudio, type ClashAudio } from '../lib/clashAudio'
 import { CPU_LEVELS, CPU_PROFILES, createClashCpu, predictKo, type CpuLevel } from '../lib/clashCpu'
 import { createClashRenderer, type ClashLook } from '../lib/clashRender'
-import { KIT_INFO, clashStats, clashType, type ClashType } from '../lib/clashRoster'
+import {
+  CLASH_KITS,
+  KIT_INFO,
+  clashStats,
+  clashType,
+  pickClashRoster,
+  type ClashType,
+} from '../lib/clashRoster'
 import { SEASON_COLOR, SEASON_LABEL, seasonOf } from '../lib/duel'
 import { useI18n } from '../lib/i18n'
 import { dominantColor, type CutoutsFile } from '../lib/platform'
@@ -98,26 +105,28 @@ function writeStored(key: string, value: unknown) {
 }
 
 function buildRoster(data: Data): ClashChara[] {
-  const playable = outfits.filter((outfit) => cutouts.sprites[outfit.key])
-  const selected = (['spring', 'summer', 'autumn', 'winter'] as ClashKit[]).flatMap((season) =>
-    playable.filter((outfit) => seasonOf(outfit.date) === season).slice(0, 3),
-  )
-  return selected.map((outfit) => {
-    const season = seasonOf(outfit.date)
-    const ids = data.outfitItemIds.get(outfit.key)
-    const color = dominantColor([...(ids ?? [])].map((id) => data.itemMap.get(id)?.color))
-    const bucket = colorBuckets.find((entry) => entry.name === color)
-    const stats = clashStats(season, color)
-    const sprite = cutouts.sprites[outfit.key]
+  // outfits は新しい順。季節×代表色ごとに、いちばん新しい1着をファイターにする。
+  const candidates = outfits
+    .filter((outfit) => cutouts.sprites[outfit.key])
+    .map((outfit) => {
+      const ids = data.outfitItemIds.get(outfit.key)
+      const sprite = cutouts.sprites[outfit.key]
+      return {
+        key: outfit.key,
+        no: outfit.no,
+        date: outfit.date,
+        season: seasonOf(outfit.date),
+        color: dominantColor([...(ids ?? [])].map((id) => data.itemMap.get(id)?.color)),
+        ratio: sprite.w / sprite.h,
+      }
+    })
+  return pickClashRoster(candidates).map((entry) => {
+    const bucket = colorBuckets.find((item) => item.name === entry.color)
+    const stats = clashStats(entry.season, entry.color)
     return {
-      key: outfit.key,
-      no: outfit.no,
-      date: outfit.date,
-      season,
-      color,
-      accent: bucket?.swatch ?? SEASON_COLOR[season],
-      accentSoft: COLOR_SOFT[color ?? ''] ?? '#ffffff',
-      ratio: sprite.w / sprite.h,
+      ...entry,
+      accent: bucket?.swatch ?? SEASON_COLOR[entry.season],
+      accentSoft: COLOR_SOFT[entry.color ?? ''] ?? '#ffffff',
       stats,
       type: clashType(stats),
     }
@@ -132,7 +141,10 @@ export default function ClashGameView({ data, onBack }: Props) {
     const stored = readStored<string>(LEVEL_KEY, 'normal')
     return CPU_LEVELS.includes(stored as CpuLevel) ? (stored as CpuLevel) : 'normal'
   })
-  const [selected, setSelected] = useState<[number, number]>([0, Math.min(4, roster.length - 1)])
+  const [selected, setSelected] = useState<[number, number]>(() => {
+    const rival = roster.findIndex((chara) => chara.season !== roster[0]?.season)
+    return [0, rival > 0 ? rival : Math.min(1, roster.length - 1)]
+  })
   const [picking, setPicking] = useState<0 | 1>(0)
   // CPU戦の相手は、選ばなければ毎試合おまかせ。
   const [foeAuto, setFoeAuto] = useState(true)
@@ -310,6 +322,7 @@ function ClashSelect({
   onBack: () => void
 }) {
   const { t } = useI18n()
+  const [season, setSeason] = useState<ClashKit | 'all'>('all')
   const first = roster[selected[0]]
   const second = roster[selected[1]]
   const sides: [string, string] =
@@ -395,10 +408,22 @@ function ClashSelect({
 
       <div className="clash-roster-head">
         <span className="mono">{sides[picking]} SELECT</span>
-        <span className="jp">{t('ファイターを選ぶ')}</span>
+        <span className="jp">{t('ファイターを選ぶ（全{count}着）', { count: roster.length })}</span>
+        <span className="clash-roster-filter" role="group" aria-label={t('季節でしぼる')}>
+          {(['all', ...CLASH_KITS] as const).map((entry) => (
+            <button
+              key={entry}
+              className={`jp${season === entry ? ' active' : ''}`}
+              onClick={() => setSeason(entry)}
+            >
+              {entry === 'all' ? t('すべて') : t(SEASON_LABEL[entry])}
+            </button>
+          ))}
+        </span>
       </div>
       <div className="clash-roster">
         {roster.map((chara, index) => {
+          if (season !== 'all' && chara.season !== season) return null
           const isFirst = selected[0] === index
           const isSecond = selected[1] === index && !hiddenFoe
           return (

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { Data } from '../lib/useData'
 import { outfits, thumb } from '../lib/useData'
 import type { Outfit } from '../types'
+import GameFullscreenButton from './GameFullscreenButton'
 import GameShareButton from './GameShareButton'
 import { useI18n } from '../lib/i18n'
 
@@ -268,6 +269,7 @@ export default function MemoryGameView({ data, onBack }: { data: Data; onBack: (
     return (
       <main className="g-finished">
         <div className="g-setup-card">
+          <GameFullscreenButton className="game-fs-corner" />
           <h2 className="g-setup-title jp">{t(solo ? 'クリア！' : '結果発表')}</h2>
           {!solo && (
             <p className="g-winner jp">
@@ -333,6 +335,7 @@ export default function MemoryGameView({ data, onBack }: { data: Data; onBack: (
         <div className="g-remaining jp">
           {t('残り {count} 枚', { count: remaining })}
         </div>
+        <GameFullscreenButton />
       </div>
 
       {/* ステージ: めくった2枚を大きく見せ、一致アイテムを強調 */}

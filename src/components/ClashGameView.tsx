@@ -22,7 +22,7 @@ import {
   type ClashType,
 } from '../lib/clashRoster'
 import { SEASON_COLOR, SEASON_LABEL, seasonOf } from '../lib/duel'
-import { requestNativeFullscreen } from '../lib/fullscreen'
+import { scrollGameToTop, useGameFullscreen } from '../lib/gameFullscreen'
 import { useI18n } from '../lib/i18n'
 import { dominantColor, type CutoutsFile } from '../lib/platform'
 import { colorBuckets, fmtDate, outfits, type Data } from '../lib/useData'
@@ -153,40 +153,6 @@ export default function ClashGameView({ data, onBack }: Props) {
   const [best, setBest] = useState<Partial<Record<CpuLevel, number>>>(() => readStored(BEST_KEY, {}))
   const [matchKey, setMatchKey] = useState(0)
 
-  // 全画面は <main> ごと切り替える。対戦画面は試合ごとに作り直すので、そちらを対象にすると
-  // 「次の相手へ」のたびに全画面が解けてしまう。
-  const mainRef = useRef<HTMLElement>(null)
-  const [nativeFullscreen, setNativeFullscreen] = useState(false)
-  // Fullscreen API が使えない端末（iPhone のブラウザ）では、fixed で画面を覆う擬似全画面にする。
-  const [pseudoFullscreen, setPseudoFullscreen] = useState(false)
-  useEffect(() => {
-    const onChange = () => setNativeFullscreen(document.fullscreenElement != null)
-    document.addEventListener('fullscreenchange', onChange)
-    return () => document.removeEventListener('fullscreenchange', onChange)
-  }, [])
-  // 擬似全画面のあいだは、背後のページをスクロールさせない。
-  useEffect(() => {
-    if (!pseudoFullscreen) return
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [pseudoFullscreen])
-  const exitFullscreen = useCallback(() => {
-    setPseudoFullscreen(false)
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
-  }, [])
-  const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement || pseudoFullscreen) {
-      exitFullscreen()
-      return
-    }
-    void requestNativeFullscreen(mainRef.current).then((entered) => {
-      if (!entered) setPseudoFullscreen(true)
-    })
-  }, [exitFullscreen, pseudoFullscreen])
-
   const randomFoe = useCallback(
     (first: number, avoid: number) => {
       if (roster.length < 2) return first
@@ -263,7 +229,7 @@ export default function ClashGameView({ data, onBack }: Props) {
   }
 
   return (
-    <main ref={mainRef} className={`clash${pseudoFullscreen ? ' is-pseudo-fullscreen' : ''}`}>
+    <main className="clash">
       {screen === 'select' ? (
         <ClashSelect
           roster={roster}
@@ -300,19 +266,13 @@ export default function ClashGameView({ data, onBack }: Props) {
           level={level}
           streak={streak}
           best={best[level] ?? 0}
-          fullscreen={nativeFullscreen || pseudoFullscreen}
-          onToggleFullscreen={toggleFullscreen}
           onResult={onResult}
           onRematch={() => setMatchKey((key) => key + 1)}
           onNext={() => {
             setSelected(([first, second]) => [first, randomFoe(first, second)])
             setMatchKey((key) => key + 1)
           }}
-          onRoster={() => {
-            // 選択画面は縦に長いので、全画面のままだとスクロールできない。
-            exitFullscreen()
-            setScreen('select')
-          }}
+          onRoster={() => setScreen('select')}
         />
       )}
     </main>
@@ -693,8 +653,6 @@ function ClashPlay({
   level,
   streak,
   best,
-  fullscreen,
-  onToggleFullscreen,
   onResult,
   onRematch,
   onNext,
@@ -705,14 +663,13 @@ function ClashPlay({
   level: CpuLevel
   streak: number
   best: number
-  fullscreen: boolean
-  onToggleFullscreen: () => void
   onResult: (winner: 0 | 1) => void
   onRematch: () => void
   onNext: () => void
   onRoster: () => void
 }) {
   const { t } = useI18n()
+  const { active: fullscreen, toggle: toggleFullscreen } = useGameFullscreen()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const touchRef = useRef<TouchState>(emptyTouch())
   const audioRef = useRef<ClashAudio | null>(null)
@@ -746,7 +703,7 @@ function ClashPlay({
   useEffect(() => () => audioRef.current?.close(), [])
 
   useEffect(() => {
-    window.scrollTo({ top: 0 })
+    scrollGameToTop()
     const canvas = canvasRef.current
     if (!canvas) return
     const context = canvas.getContext('2d')
@@ -1078,7 +1035,7 @@ function ClashPlay({
           <button onClick={() => setPaused((current) => !current)}>
             {paused ? 'RESUME' : 'PAUSE'}
           </button>
-          <button onClick={onToggleFullscreen}>{fullscreen ? 'EXIT FULL' : 'FULL'}</button>
+          <button onClick={toggleFullscreen}>{fullscreen ? 'EXIT FULL' : 'FULL'}</button>
         </span>
       </div>
       <div className="clash-canvas-wrap">

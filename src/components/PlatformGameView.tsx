@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import cutoutsJson from '../data/cutouts.json'
+import GameFullscreenButton from './GameFullscreenButton'
 import GameShareButton from './GameShareButton'
 import { SEASON_COLOR, SEASON_LABEL, seasonOf, type Season } from '../lib/duel'
 import {
@@ -23,6 +24,7 @@ import {
 } from '../lib/platform'
 import { colorBuckets, fmtDate, outfits, type Data } from '../lib/useData'
 import { useI18n } from '../lib/i18n'
+import { scrollGameToTop, useGameFullscreen } from '../lib/gameFullscreen'
 
 // ランウェイ: 出勤服からくり抜いた自分を操作するミニプラットフォーマー。
 // キャラ選択（季節×色で特性が変わる）→ ステージ選択 → Canvasプレイの3画面。
@@ -620,7 +622,7 @@ export default function PlatformGameView({ data, onBack }: Props) {
     localStorage.setItem(CHAR_KEY, key)
     setCharKey(key)
     setScreen('stages')
-    window.scrollTo({ top: 0 })
+    scrollGameToTop()
   }
 
   const saveBest = (idx: number, r: Best) => {
@@ -765,9 +767,12 @@ function StageSelect({
   const { t } = useI18n()
   return (
     <div className="plat-inner">
-      <button className="game-back jp" onClick={onBack}>
-        ← {t('ゲーム選択にもどる')}
-      </button>
+      <div className="game-nav">
+        <button className="game-back jp" onClick={onBack}>
+          ← {t('ゲーム選択にもどる')}
+        </button>
+        <GameFullscreenButton />
+      </div>
       <h2 className="plat-title jp">{t('ランウェイ')}</h2>
       <div className="plat-lobby">
         <div className="plat-lobby-chara">
@@ -862,49 +867,28 @@ function Play({
     [],
   )
   // 全画面（スマホは横向きに固定してコントローラーふうに遊ぶ）。
-  // iPhone Safari は Fullscreen API 非対応なので、fixed オーバーレイの擬似全画面で代替する。
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const [isFs, setIsFs] = useState(false)
-  const [pseudoFs, setPseudoFs] = useState(false)
+  // 切り替えは全ゲーム共通の仕組み（App のルートごと）で、ここでは遊ぶ画面を
+  // fixed で全面に重ねる。
+  const { active: isFs, native: nativeFs, toggle: toggleFullscreen } = useGameFullscreen()
   useEffect(() => {
-    const onFs = () => setIsFs(document.fullscreenElement != null)
-    document.addEventListener('fullscreenchange', onFs)
-    return () => document.removeEventListener('fullscreenchange', onFs)
-  }, [])
-  // 擬似全画面中は背後のページがスクロールしないようにする
-  useEffect(() => {
-    if (!pseudoFs) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    if (!nativeFs) return
+    // 横向きロックは対応端末のみ（iOS は lock 自体がない）
+    const so = screen.orientation as ScreenOrientation & {
+      lock?: (o: string) => Promise<void>
+    }
+    try {
+      so.lock?.('landscape').catch(() => {})
+    } catch {
+      // 対応していない環境では何もしない
+    }
     return () => {
-      document.body.style.overflow = prev
+      try {
+        so.unlock?.()
+      } catch {
+        // 同上
+      }
     }
-  }, [pseudoFs])
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      void document.exitFullscreen()
-      return
-    }
-    if (pseudoFs) {
-      setPseudoFs(false)
-      return
-    }
-    const el = wrapRef.current
-    if (!el) return
-    if (typeof el.requestFullscreen === 'function') {
-      el.requestFullscreen()
-        .then(() => {
-          // 横向きロックは対応端末のみ（iOS は lock 自体がない）
-          const so = screen.orientation as ScreenOrientation & {
-            lock?: (o: string) => Promise<void>
-          }
-          so.lock?.('landscape').catch(() => {})
-        })
-        .catch(() => setPseudoFs(true)) // 拒否されたら擬似全画面に切り替え
-    } else {
-      setPseudoFs(true)
-    }
-  }
+  }, [nativeFs])
   // タッチボタンの押下状態（ゲームループから参照）
   const touchKeys = useRef({ left: false, right: false, jump: false, jumpEdge: false, dash: false })
 
@@ -918,7 +902,7 @@ function Play({
   useEffect(() => {
     setCleared(null)
     setShowTip(true)
-    window.scrollTo({ top: 0 }) // 小さい画面でもHUDからパッドまで一目で収める
+    scrollGameToTop() // 小さい画面でもHUDからパッドまで一目で収める
     const tipTimer = setTimeout(() => setShowTip(false), 5500)
 
     const canvas = canvasRef.current!
@@ -1312,8 +1296,7 @@ function Play({
 
   return (
     <div
-      className={`plat-inner plat-playwrap${pseudoFs ? ' plat-fs-mode' : ''}`}
-      ref={wrapRef}
+      className={`plat-inner plat-playwrap${isFs ? ' plat-fs-mode' : ''}`}
       onPointerDownCapture={() => audioRef.current?.unlock()}
     >
       <div className="plat-hud mono">
@@ -1340,7 +1323,7 @@ function Play({
           title={t('全画面（スマホは横向き固定）')}
           aria-label={t('全画面切り替え')}
         >
-          {isFs || pseudoFs ? '✕' : '⛶'}
+          {isFs ? '✕' : '⛶'}
         </button>
       </div>
       <div className="plat-screen">

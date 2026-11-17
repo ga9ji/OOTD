@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Data } from '../lib/useData'
 import { fmtDate, outfits, thumb } from '../lib/useData'
+import GameFullscreenButton from './GameFullscreenButton'
 import GameShareButton from './GameShareButton'
 import {
   QUESTIONS,
@@ -218,9 +219,12 @@ export default function QuizGameView({ data, onBack }: { data: Data; onBack: () 
     return (
       <main className="g-setup">
         <div className="g-setup-card g-quiz-card">
-          <button className="game-back jp" onClick={goPrev}>
-            ← {t(step === 0 ? 'ゲームを選ぶ' : '前の質問')}
-          </button>
+          <div className="game-nav">
+            <button className="game-back jp" onClick={goPrev}>
+              ← {t(step === 0 ? 'ゲームを選ぶ' : '前の質問')}
+            </button>
+            <GameFullscreenButton />
+          </div>
           <div className="g-quiz-progress-row">
             <span className="g-quiz-progress-label mono">
               {step + 1} / {QUESTIONS.length}
@@ -253,6 +257,7 @@ export default function QuizGameView({ data, onBack }: { data: Data; onBack: () 
   return (
     <main className="g-finished">
       <div className="g-setup-card g-quiz-card">
+        <GameFullscreenButton className="game-fs-corner" />
         <span className="g-quiz-type-tag mono">RESULT</span>
         <div className="g-quiz-type-code mono">{type.code}</div>
         <h2 className="g-quiz-type-name jp">{displayType?.name}</h2>

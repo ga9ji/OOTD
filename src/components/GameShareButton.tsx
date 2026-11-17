@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../lib/i18n'
 import { shareUrl } from '../lib/share'
+import GameFullscreenButton from './GameFullscreenButton'
 
 // ゲーム別OGPを持つ静的ページ（public/game/<name>/）のURLを共有する。
 // 共有シート非対応の環境ではクリップボードへのコピーで代替する。
+// どのゲームも最初の画面にこのボタンを置いているので、全画面ボタンもここに並べる。
 type Props = {
   game: 'memory' | 'duel' | 'platform' | 'tower' | 'chari' | 'quiz' | 'slot' | 'shiki' | 'kisekae' | 'clash'
   title: string
@@ -33,6 +35,7 @@ export default function GameShareButton({ game, title }: Props) {
     <span className="game-share">
       {state === 'copied' && <span className="game-share-msg jp">{t('リンクをコピーしました')}</span>}
       {state === 'error' && <span className="game-share-msg error jp">{t('コピーできませんでした')}</span>}
+      <GameFullscreenButton />
       <button className="game-share-btn jp" onClick={onShare} title={t('このゲームのリンクを共有')}>
         {t('共有')}
       </button>

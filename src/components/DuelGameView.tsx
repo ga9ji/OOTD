@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { Data } from '../lib/useData'
 import { outfits, thumb } from '../lib/useData'
 import hairJson from '../data/hair.json'
+import GameFullscreenButton from './GameFullscreenButton'
 import GameShareButton from './GameShareButton'
 import type { HairFile } from '../types'
 import {
@@ -751,6 +752,7 @@ export default function DuelGameView({ data, onBack }: { data: Data; onBack: () 
             <button className="chip jp" onClick={() => setPhase('setup')}>
               {t('戻る')}
             </button>
+            <GameFullscreenButton />
           </div>
         </div>
         <div className="d-deck-grid">
@@ -925,6 +927,7 @@ export default function DuelGameView({ data, onBack }: { data: Data; onBack: () 
       >
         {t(muted ? '音 OFF' : '音 ON')}
       </button>
+      <GameFullscreenButton className="d-fs-float" />
       {intro && (
         <div className="d-duel-intro" aria-hidden>
           <span className="d-duel-intro-kicker mono">DAILY FITS CARD BATTLE</span>

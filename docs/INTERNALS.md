@@ -130,6 +130,15 @@ node scripts/cutout.mjs --force         # 作り直し
 - 「チャリ通」の無限コース生成・物理は `src/lib/chari.ts`。穴幅や安全帯の公平性と、30シード×90秒の走破可能性をbotテストで保証している（`chari.playability.test.ts`）
 - 個別ゲーム表示中の長押し選択・コンテキストメニュー・画像ドラッグ・Canvasのブラウザ既定操作は `src/lib/gameInteractionGuard.ts` で共通抑止する。ボタン・リンク・入力欄は除外し、通常操作を維持する
 
+## ゲームの全画面
+
+全ゲーム共通。どのゲームも最初の画面の「共有」の隣に全画面ボタン（`GameFullscreenButton`）があり、見出し行のない画面（対戦中・結果のカードなど）にも個別に置いている。
+
+- **切り替えるのは App のルート要素**（`src/lib/gameFullscreen.tsx` の `useGameFullscreenController`）。ゲームごとの要素を対象にすると、画面が切り替わるたび（選択 → 対戦 → 再戦など）に全画面が解けてしまう。ゲーム一覧へ戻ると解ける
+- **Fullscreen API が無い端末**（iPhone のブラウザ）や要求が拒否されたときは、`fixed` で画面を覆う擬似全画面に切り替える（`src/lib/fullscreen.ts` の `requestNativeFullscreen` が false を返したとき）。ルートのクラスは、どちらの全画面でも `.is-fullscreen`、擬似のときだけ `.is-pseudo-fullscreen` も付く
+- **全画面のあいだはルート要素の中でスクロールする**ので、画面を先頭へ戻すときは `window.scrollTo` ではなく `scrollGameToTop()` を使う
+- **ゲームごとの見た目**は `.app.is-fullscreen` 配下の CSS で調整する。タワーとチャリ通は盤面が画面の高さに収まる幅にし、着戦の対戦画面（`.clash-play.is-fullscreen`）とランウェイの遊ぶ画面（`.plat-fs-mode`、対応端末では横向きに固定）は画面いっぱいに敷く。ゲーム側で状態が要るときは `useGameFullscreen()`
+
 ## 着戦（プラットフォーム対戦）
 
 ゲームタブの「着戦 KISEKAE CLASH」は、蓄積ダメージで吹っ飛ばして場外へ出す3ストック制の対戦アクション。基本は CPU 戦（勝ち抜きの連勝を記録）で、CPU どうしの観戦と、同じキーボードでの2人対戦もある。
@@ -158,7 +167,6 @@ node scripts/cutout.mjs --force         # 作り直し
 VITE_CLASH_REPORT=1 VITE_CLASH_GAMES=40 pnpm vitest run src/lib/__tests__/clash.balance.test.ts --disable-console-intercept
 ```
 
-- **全画面（FULL）**: `<main class="clash">` ごと Fullscreen API で切り替える（対戦画面は試合ごとに作り直すので、そちらを対象にすると再戦のたびに解ける）。API が無い iPhone のブラウザや要求が拒否されたときは、`fixed` で画面を覆う擬似全画面（`.is-pseudo-fullscreen`、ランウェイの `.plat-fs-mode` と同じ考え方）に切り替える。判定は `src/lib/fullscreen.ts` の `requestNativeFullscreen`。ファイター選択へ戻ると全画面は解ける
 - 連勝記録は `localStorage`（`clash.best`、難易度ごと）。開発時は `window.__clash.step(n)` で試合を n フレーム早送りできる
 
 ## 俺スロ（スロット）

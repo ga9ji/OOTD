@@ -6,6 +6,7 @@ import ScrollToTopButton from './components/ScrollToTopButton'
 import ThemeToggle from './components/ThemeToggle'
 import { useOverrides } from './lib/store'
 import { useGameInteractionGuard } from './lib/gameInteractionGuard'
+import { GameFullscreenProvider, useGameFullscreenController } from './lib/gameFullscreen'
 
 // 初期表示に不要なビューは遅延読み込みして初期バンドルを軽くする。
 // ゲーム（DuelGameView / MemoryGameView）と色解析は依存が重いので特に効果が大きい。
@@ -176,9 +177,19 @@ export default function App() {
     view === 'kisekae' ||
     view === 'clash'
   const gameInteractionRef = useGameInteractionGuard(isPlayingGame)
+  // 全画面はこのルート要素ごと切り替える。ゲームから出たら解ける。
+  const fullscreen = useGameFullscreenController(gameInteractionRef, isPlayingGame)
+  const appClass = [
+    'app',
+    isPlayingGame ? 'playing-game' : '',
+    fullscreen.active ? 'is-fullscreen' : '',
+    fullscreen.pseudo ? 'is-pseudo-fullscreen' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
-  return (
-    <div ref={gameInteractionRef} className={isPlayingGame ? 'app playing-game' : 'app'}>
+  const page = (
+    <div ref={gameInteractionRef} className={appClass}>
       <header className="header">
         <button
           className="brand"
@@ -354,4 +365,5 @@ export default function App() {
       <ScrollToTopButton />
     </div>
   )
+  return <GameFullscreenProvider value={fullscreen}>{page}</GameFullscreenProvider>
 }

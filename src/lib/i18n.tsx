@@ -523,6 +523,8 @@ export const EN: Record<string, string> = {
   '音 ON': 'SOUND ON',
   '全画面（スマホは横向き固定）': 'Fullscreen (landscape on mobile)',
   '全画面切り替え': 'Toggle fullscreen',
+  '全画面にする': 'Enter fullscreen',
+  '全画面を終了': 'Exit fullscreen',
   'コイン {coins}/{total} · タイム {time} · ミス {miss}':
     'COINS {coins}/{total} · TIME {time} · MISSES {miss}',
   '次のステージ →': 'NEXT STAGE →',

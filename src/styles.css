@@ -367,6 +367,34 @@ html.dark .tab:hover {
   }
 }
 
+/* ---------- ゲームの全画面 ----------
+   App のルートごと全画面にする（lib/gameFullscreen.tsx）。ゲーム内で画面が変わっても続く。
+   .is-fullscreen はブラウザの全画面と擬似全画面の両方、.is-pseudo-fullscreen は
+   Fullscreen API が使えない端末（iPhone のブラウザ）向けに fixed で画面を覆うときだけ付く。 */
+.app.is-fullscreen {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+  padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right, 0px))
+    env(safe-area-inset-bottom, 0px) max(12px, env(safe-area-inset-left, 0px));
+  /* 縦に長い画面（選択画面など）は、この中でスクロールする */
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+.app.is-pseudo-fullscreen {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  height: auto;
+}
+.app.is-fullscreen > .header,
+.app.is-fullscreen > .footer {
+  display: none;
+}
+
 /* タブが1行に収まりきらない中間幅では余白を詰める */
 @media (max-width: 1100px) {
   .tab {
@@ -3264,6 +3292,38 @@ html.dark .tab:hover {
 .game-share-btn:hover {
   color: var(--text);
 }
+/* 全画面の切り替え（全ゲーム共通）。アイコンは小さいので、当たり判定だけ広げる */
+.game-fs-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin: -7px -3px;
+  padding: 7px;
+  color: var(--text-sub);
+  line-height: 0;
+}
+.game-fs-btn:hover,
+.game-fs-btn[aria-pressed='true'] {
+  color: var(--text);
+}
+/* 見出し行のない画面（結果のカードなど）では右上の角に置く */
+.game-fs-corner {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  margin: 0;
+}
+.g-setup-card:has(> .game-fs-corner) {
+  position: relative;
+}
+.game-fs-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .game-share-msg {
   font-size: 11.5px;
   color: var(--text-sub);
@@ -4200,6 +4260,17 @@ html.dark .tab:hover {
   z-index: 12;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+/* 全画面の切り替えは、対戦中は音ボタンの下に浮かせる */
+.d-fs-float {
+  position: absolute;
+  top: 46px;
+  right: 12px;
+  z-index: 12;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
 }
 .d-side {
   border: 1px solid var(--border);
@@ -5955,8 +6026,7 @@ html.dark .d-lp-bar {
 }
 
 /* 全画面: 黒背景にレターボックスで最大表示（スマホは横向きロックも試みる）。
-   .plat-fs-mode は Fullscreen API が使えない端末（iPhone Safari）向けの擬似全画面 */
-.plat-playwrap:fullscreen,
+   全画面の切り替えは App のルートごと行い、遊ぶ画面は .plat-fs-mode で全面に重ねる */
 .plat-playwrap.plat-fs-mode {
   background: #101013;
   align-items: center;
@@ -5971,31 +6041,21 @@ html.dark .d-lp-bar {
   width: auto;
   margin: 0;
 }
-.plat-playwrap:fullscreen .plat-hud,
-.plat-playwrap:fullscreen .plat-screen,
 .plat-playwrap.plat-fs-mode .plat-hud,
 .plat-playwrap.plat-fs-mode .plat-screen {
   width: min(100%, calc((100dvh - 76px) * 1.7778));
 }
-.plat-playwrap:fullscreen .plat-controls,
 .plat-playwrap.plat-fs-mode .plat-controls {
   display: none;
 }
 /* 全画面×タッチ: パッドは下の黒帯（レターボックス）に重ね、その分キャンバスを上に寄せる */
-.plat-playwrap:fullscreen {
-  position: relative; /* パッドのabsolute配置の基準（擬似全画面はfixedが基準になる） */
-}
-.plat-playwrap:fullscreen:has(.plat-pads),
 .plat-playwrap.plat-fs-mode:has(.plat-pads) {
   padding-bottom: max(84px, env(safe-area-inset-bottom));
 }
-.plat-playwrap:fullscreen:has(.plat-pads) .plat-hud,
-.plat-playwrap:fullscreen:has(.plat-pads) .plat-screen,
 .plat-playwrap.plat-fs-mode:has(.plat-pads) .plat-hud,
 .plat-playwrap.plat-fs-mode:has(.plat-pads) .plat-screen {
   width: min(100%, calc((100dvh - 150px) * 1.7778));
 }
-.plat-playwrap:fullscreen .plat-pads,
 .plat-playwrap.plat-fs-mode .plat-pads {
   position: absolute;
   left: max(12px, env(safe-area-inset-left));
@@ -6010,17 +6070,17 @@ html.dark .d-lp-bar {
   .plat {
     padding: 6px 0 10px;
   }
-  .plat-playwrap:not(:fullscreen):not(.plat-fs-mode) .plat-hud,
-  .plat-playwrap:not(:fullscreen):not(.plat-fs-mode) .plat-screen {
+  .plat-playwrap:not(.plat-fs-mode) .plat-hud,
+  .plat-playwrap:not(.plat-fs-mode) .plat-screen {
     width: min(100%, calc((100dvh - 158px) * 1.7778));
     margin-inline: auto;
   }
   /* パッドがある（タッチ）ときはその高さぶんも収める */
-  .plat-playwrap:has(.plat-pads):not(:fullscreen):not(.plat-fs-mode) .plat-hud,
-  .plat-playwrap:has(.plat-pads):not(:fullscreen):not(.plat-fs-mode) .plat-screen {
+  .plat-playwrap:has(.plat-pads):not(.plat-fs-mode) .plat-hud,
+  .plat-playwrap:has(.plat-pads):not(.plat-fs-mode) .plat-screen {
     width: min(100%, calc((100dvh - 216px) * 1.7778));
   }
-  .plat-playwrap:not(:fullscreen):not(.plat-fs-mode) .plat-pads {
+  .plat-playwrap:not(.plat-fs-mode) .plat-pads {
     width: min(100%, calc((100dvh - 216px) * 1.7778));
     margin-inline: auto;
   }
@@ -6246,8 +6306,40 @@ html.dark .d-lp-bar {
   white-space: nowrap;
 }
 @media (max-width: 420px) {
+  .tower {
+    padding-top: 6px;
+  }
+  /* 1行に収まりきらないので、スコアは2行目へ送る（チャリ通と同じ並べ方） */
   .tower-head {
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+  .tower-stats {
+    order: 5;
+    width: 100%;
+    margin-left: 0;
+  }
+  .tower-sound {
+    margin-left: auto;
+  }
+}
+/* 全画面: 盤面（2:3）が画面の高さに収まる幅にする。--tower-chrome は盤面以外の高さ。
+   背の低い画面では盤面だけを細くし、見出し行は詰まらない幅（380px）を残す */
+.app.is-fullscreen .tower {
+  --tower-chrome: 124px;
+  --tower-board: max(240px, calc((100dvh - var(--tower-chrome)) * 2 / 3));
+  padding: 6px 0 8px;
+}
+.app.is-fullscreen .tower-inner {
+  width: min(100%, max(380px, calc(var(--tower-board) + 32px)));
+}
+.app.is-fullscreen .tower-screen {
+  width: min(100%, var(--tower-board));
+  margin-inline: auto;
+}
+@media (max-width: 420px) {
+  .app.is-fullscreen .tower {
+    --tower-chrome: 166px;
   }
   .tower-result {
     padding: 22px 16px;
@@ -6638,6 +6730,31 @@ html.dark .d-lp-bar {
 .chari-caption {
   min-width: 128px;
   color: var(--text);
+}
+
+/* 全画面: 画面（16:9）が高さに収まる幅にする。--chari-chrome は画面以外の高さ。
+   背の低い画面では画面だけを細くし、見出し行は詰まらない幅を残す */
+.app.is-fullscreen .chari {
+  --chari-chrome: 124px;
+  --chari-board: max(320px, calc((100dvh - var(--chari-chrome)) * 16 / 9));
+  padding: 6px 0 8px;
+}
+.app.is-fullscreen .chari-inner {
+  width: min(100%, max(660px, calc(var(--chari-board) + 32px)));
+}
+.app.is-fullscreen .chari-screen {
+  width: min(100%, var(--chari-board));
+  margin-inline: auto;
+}
+@media (max-width: 760px) {
+  /* 幅の狭い画面は縦長（2:3）で描く */
+  .app.is-fullscreen .chari {
+    --chari-chrome: 170px;
+    --chari-board: max(240px, calc((100dvh - var(--chari-chrome)) * 2 / 3));
+  }
+  .app.is-fullscreen .chari-inner {
+    width: min(100%, max(360px, calc(var(--chari-board) + 16px)));
+  }
 }
 
 @media (max-width: 760px) {
@@ -7815,9 +7932,10 @@ html.dark .d-lp-bar {
      リール窓の高さ = 画面の高さ − この値 */
   --slot-chrome: 300px;
 }
-/* マウス環境ではサイトのヘッダーが残るので、そのぶんを足す */
+/* マウス環境ではサイトのヘッダーが残るので、そのぶんを足す（全画面ではヘッダーが消えるので足さない）。
+   :where() は詳細度を上げないため。下の画面サイズ別の指定が、これまでどおり後勝ちで効く */
 @media (pointer: fine) {
-  .slot {
+  :where(.app:not(.is-fullscreen)) .slot {
     --slot-chrome: 384px;
   }
 }
@@ -8456,7 +8574,7 @@ html.dark .d-lp-bar {
     }
   }
   @media (pointer: fine) {
-    .slot {
+    :where(.app:not(.is-fullscreen)) .slot {
       --slot-chrome: 184px;
     }
   }
@@ -10182,6 +10300,12 @@ html.dark .kk-column {
   border-color: var(--clash-line);
 }
 
+.clash-nav .game-fs-btn {
+  color: var(--clash-muted);
+}
+
+.clash-nav .game-fs-btn:hover,
+.clash-nav .game-fs-btn[aria-pressed='true'],
 .clash-nav .game-back:hover,
 .clash-nav .game-share-btn:hover {
   color: #fff;
@@ -10896,19 +11020,17 @@ html.dark .kk-column {
   display: none;
 }
 
-/* 全画面は <main class="clash"> ごと切り替える（対戦画面は試合ごとに作り直すため）。
-   .is-pseudo-fullscreen は Fullscreen API が使えない端末（iPhone のブラウザ）向けの擬似全画面で、
-   ランウェイの .plat-fs-mode と同じく fixed で画面を覆う。 */
-.clash.is-pseudo-fullscreen {
-  position: fixed;
-  z-index: 60;
-  inset: 0;
-  min-height: 0;
-  overflow: hidden;
+/* 全画面（App のルートごと切り替わる）。着戦は地の色が暗いので、余白なしで端まで敷く。 */
+.app.is-fullscreen:has(> main.clash) {
+  padding: 0;
+}
+
+.app.is-fullscreen > main.clash {
+  min-height: 100%;
 }
 
 .clash-play.is-fullscreen {
-  width: 100vw;
+  width: 100%;
   height: 100dvh;
   max-width: none;
   padding: max(7px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))

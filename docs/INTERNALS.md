@@ -158,6 +158,7 @@ node scripts/cutout.mjs --force         # 作り直し
 VITE_CLASH_REPORT=1 VITE_CLASH_GAMES=40 pnpm vitest run src/lib/__tests__/clash.balance.test.ts --disable-console-intercept
 ```
 
+- **全画面（FULL）**: `<main class="clash">` ごと Fullscreen API で切り替える（対戦画面は試合ごとに作り直すので、そちらを対象にすると再戦のたびに解ける）。API が無い iPhone のブラウザや要求が拒否されたときは、`fixed` で画面を覆う擬似全画面（`.is-pseudo-fullscreen`、ランウェイの `.plat-fs-mode` と同じ考え方）に切り替える。判定は `src/lib/fullscreen.ts` の `requestNativeFullscreen`。ファイター選択へ戻ると全画面は解ける
 - 連勝記録は `localStorage`（`clash.best`、難易度ごと）。開発時は `window.__clash.step(n)` で試合を n フレーム早送りできる
 
 ## 俺スロ（スロット）

@@ -10896,7 +10896,17 @@ html.dark .kk-column {
   display: none;
 }
 
-.clash-play:fullscreen,
+/* 全画面は <main class="clash"> ごと切り替える（対戦画面は試合ごとに作り直すため）。
+   .is-pseudo-fullscreen は Fullscreen API が使えない端末（iPhone のブラウザ）向けの擬似全画面で、
+   ランウェイの .plat-fs-mode と同じく fixed で画面を覆う。 */
+.clash.is-pseudo-fullscreen {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .clash-play.is-fullscreen {
   width: 100vw;
   height: 100dvh;
@@ -10906,19 +10916,16 @@ html.dark .kk-column {
   background: #05050c;
 }
 
-.clash-play:fullscreen .clash-playbar,
 .clash-play.is-fullscreen .clash-playbar {
   min-height: 29px;
   margin-bottom: 5px;
 }
 
-.clash-play:fullscreen .clash-canvas-wrap,
 .clash-play.is-fullscreen .clash-canvas-wrap {
   width: min(100%, calc((100dvh - 51px) * 16 / 9));
   max-height: calc(100dvh - 51px);
 }
 
-.clash-play:fullscreen .clash-controls,
 .clash-play.is-fullscreen .clash-controls {
   display: none;
 }
@@ -11447,7 +11454,6 @@ html.dark .kk-column {
   display: none;
 }
 
-.clash-play:fullscreen .clash-result,
 .clash-play.is-fullscreen .clash-result {
   padding-bottom: 40px;
 }

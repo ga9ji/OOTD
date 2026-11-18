@@ -7,6 +7,7 @@ import { parseLaunch } from '../lib/gto/shot'
 import { useI18n } from '../lib/i18n'
 import type { CutoutsFile } from '../lib/platform'
 import GameFullscreenButton from './GameFullscreenButton'
+import GameShareButton from './GameShareButton'
 import GtoHud from './gto/GtoHud'
 import GtoMinimap from './gto/GtoMinimap'
 import GtoTitle from './gto/GtoTitle'
@@ -107,6 +108,8 @@ export default function GtoGameView({ onBack }: Props) {
               {t(muted ? '音 OFF' : '音 ON')}
             </button>
             <GameFullscreenButton className="gto-fs" />
+            {/* 共有は題名の画面だけ（ほかのゲームと同じく最初の画面に置く） */}
+            {!playing && <GameShareButton game="gto" title="Grand Theft Outfit" fullscreen={false} />}
           </div>
         )}
 

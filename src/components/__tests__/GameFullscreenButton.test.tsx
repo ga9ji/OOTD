@@ -44,4 +44,10 @@ describe('GameFullscreenButton', () => {
     expect(html).toContain('game-fs-btn')
     expect(html).toContain('共有')
   })
+
+  it('全画面ボタンを別に置くゲームでは、共有だけを出せる', () => {
+    const html = render(<GameShareButton game="gto" title="Grand Theft Outfit" fullscreen={false} />)
+    expect(html).not.toContain('game-fs-btn')
+    expect(html).toContain('共有')
+  })
 })

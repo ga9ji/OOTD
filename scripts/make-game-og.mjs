@@ -1,4 +1,4 @@
-// ゲーム別OGP画像 public/og-{memory,duel,platform,tower,chari,quiz,slot,shiki,kisekae}.png (1200x630) を生成する。
+// ゲーム別OGP画像 public/og-{memory,duel,platform,tower,chari,quiz,slot,shiki,kisekae,gto}.png (1200x630) を生成する。
 // 素材はローカルの public/cutouts/*.webp（透過切り抜き）のみ。ネットワーク不要。
 // 各ゲームの実際の配色（カード裏の濃紺・季節色・Canvasのクリーム地など）を再現する。
 import { readFile } from 'node:fs/promises'
@@ -435,9 +435,131 @@ async function kisekae() {
   await save('kisekae', '#f0f0ee', layers, darkTitle('きせかえ', 'MIX &amp; MATCH'))
 }
 
+// ---- Grand Theft Outfit: 夕暮れの渋谷の交差点。題名の織りネームと、服をいただかれる通行人 ----
+// ロゴの字形は src/components/gto/GtoTitle.tsx の GLYPHS と同じ（4×6 の格子に描いた一筆書き）
+const GTO_GLYPHS = {
+  G: ['M4 1.3Q4 0 2.5 0H1.6Q0 0 0 1.6V4.4Q0 6 1.6 6H2.4Q4 6 4 4.4V3.2H2.2', 4],
+  R: ['M0 6V0H2.6Q4 0 4 1.5Q4 3 2.6 3H0M2.2 3L4 6', 4],
+  A: ['M0 6L2 0L4 6M0.8 4.1H3.2', 4],
+  N: ['M0 6V0L4 6V0', 4],
+  D: ['M0 0V6H2Q4 6 4 4V2Q4 0 2 0Z', 4],
+  T: ['M0 0H4M2 0V6', 4],
+  H: ['M0 0V6M4 0V6M0 3H4', 4],
+  E: ['M4 0H0V6H4M0 3H3', 4],
+  F: ['M4 0H0V6M0 3H3', 4],
+  O: ['M1.6 0H2.4Q4 0 4 1.6V4.4Q4 6 2.4 6H1.6Q0 6 0 4.4V1.6Q0 0 1.6 0Z', 4],
+  U: ['M0 0V4.4Q0 6 1.6 6H2.4Q4 6 4 4.4V0', 4],
+  I: ['M0.5 0V6', 1],
+}
+function gtoWord(text, x, y, size, gap) {
+  let cursor = 0
+  const glyphs = [...text].map((ch) => {
+    const [d, w] = GTO_GLYPHS[ch]
+    const at = cursor
+    cursor += w + gap
+    return `<g transform="translate(${at} 0)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="${d}" stroke="#1c2748" stroke-width="1.25"/>
+      <path d="${d}" stroke="#f1e7d0" stroke-width="0.16" stroke-dasharray="0.42 0.34"/></g>`
+  })
+  return `<g transform="translate(${x} ${y}) scale(${size})">${glyphs.join('')}</g>`
+}
+// GtoLogo と同じ 360×200 の織りネーム
+const gtoLogo = `
+  <rect x="6" y="14" width="348" height="180" rx="10" fill="#f1e7d0"/>
+  <rect x="15" y="23" width="330" height="162" rx="5" fill="none" stroke="#ff6a2b" stroke-width="2.2" stroke-dasharray="7 5"/>
+  <circle cx="180" cy="14" r="6.5" fill="#12172b"/>
+  <path d="M180 14V6Q180 0 187 0Q194 0 194 6" fill="none" stroke="#ff6a2b" stroke-width="3" stroke-linecap="round"/>
+  ${gtoWord('GRAND', 45, 48, 4.9, 1.3)}
+  ${gtoWord('THEFT', 192, 48, 4.9, 1.3)}
+  <rect x="44" y="94" width="272" height="3" fill="#ff6a2b"/>
+  ${gtoWord('OUTFIT', 45, 110, 10.6, 1.3)}`
+
+async function gto() {
+  const HORIZON = 360
+  const rnd = (n) => {
+    const x = Math.sin(n * 91.7 + 47.3) * 43758.5453
+    return x - Math.floor(x)
+  }
+  // 奥のビル群（窓あかり）と、左右の大型ビジョン
+  const towers = Array.from({ length: 16 }, (_, i) => {
+    const w = 82 + rnd(i) * 60
+    const x = i * 78 - 20
+    const h = 90 + rnd(i + 30) * 150
+    const lit = Array.from({ length: 22 }, (_, k) => {
+      const wx = x + 8 + rnd(i * 131.7 + k * 7.31) * (w - 20)
+      const wy = HORIZON - h + 12 + rnd(i * 977.3 + k * 3.17 + 0.5) * (h - 24)
+      return `<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="6" height="4" fill="#ffd98a" opacity="${(0.35 + rnd(k + i) * 0.55).toFixed(2)}"/>`
+    }).join('')
+    return `<rect x="${x}" y="${(HORIZON - h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${i % 3 ? '#232a45' : '#1b2138'}"/>${lit}`
+  }).join('')
+  // スクランブル交差点の白線（遠近をつけて地面に寝かせる）
+  const stripes = Array.from({ length: 13 }, (_, i) => {
+    const t0 = i / 13
+    const t1 = (i + 0.55) / 13
+    const xs = (t) => [W * 0.5 + (t - 0.5) * 1500, W * 0.5 + (t - 0.5) * 420]
+    const [b0, f0] = xs(t0)
+    const [b1, f1] = xs(t1)
+    return `<path d="M ${f0} ${HORIZON + 40} L ${f1} ${HORIZON + 40} L ${b1} ${H} L ${b0} ${H} Z" fill="#e8e4da" opacity="0.5"/>`
+  }).join('')
+  const scene = svg(`
+    <defs>
+      <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#1c2748"/><stop offset="0.55" stop-color="#6d4a6b"/><stop offset="1" stop-color="#ff9a5c"/>
+      </linearGradient>
+      <linearGradient id="road" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#3a3d4f"/><stop offset="1" stop-color="#22253a"/>
+      </linearGradient>
+    </defs>
+    <rect width="${W}" height="${HORIZON}" fill="url(#dusk)"/>
+    ${towers}
+    <rect x="590" y="150" width="170" height="104" rx="4" fill="#2fd3a6" opacity="0.88"/>
+    <circle cx="675" cy="202" r="30" fill="#f1e7d0" opacity="0.85"/>
+    <rect x="${W - 250}" y="170" width="150" height="92" rx="4" fill="#ff6a2b" opacity="0.88"/>
+    <rect x="${W - 240}" y="180" width="130" height="72" rx="2" fill="#ffd0a8" opacity="0.45"/>
+    <rect x="0" y="${HORIZON}" width="${W}" height="${H - HORIZON}" fill="url(#road)"/>
+    ${stripes}
+    <g transform="translate(150 ${HORIZON + 60})">
+      <rect x="0" y="0" width="190" height="56" rx="12" fill="#e8b03a"/>
+      <rect x="30" y="-30" width="120" height="40" rx="10" fill="#e8b03a"/>
+      <rect x="40" y="-24" width="100" height="26" rx="6" fill="#2a3150"/>
+      <circle cx="40" cy="58" r="18" fill="#12172b"/><circle cx="150" cy="58" r="18" fill="#12172b"/>
+      <rect x="176" y="14" width="14" height="10" rx="3" fill="#fff4c2"/>
+    </g>
+  `)
+  // 服をいただく側（主人公）と、いただかれる側の通行人
+  const hero = await sprite(PICKS[6], 330)
+  const victim = await sprite(PICKS[2], 280)
+  // 手配の印（ハンガー）を右上に
+  const hanger = (x, on) =>
+    `<path d="M${x} 46 q0 -10 9 -10 q9 0 9 8 q0 6 -9 9 L${x - 18} 70 H${x + 36} L${x + 9} 53" fill="none" stroke="${on ? '#ff6a2b' : 'rgba(241,231,208,0.35)'}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
+  const hud = svg(`
+    <g>${[0, 1, 2, 3, 4].map((i) => hanger(W - 330 + i * 60, i < 3)).join('')}</g>
+    <text x="${W - 60}" y="120" text-anchor="end" font-family="Menlo, monospace" font-size="30" font-weight="bold" fill="#f1e7d0">¥1,000</text>
+  `)
+  const logo = await sharp(Buffer.from(`<svg width="360" height="200" viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg">${gtoLogo}</svg>`))
+    .resize({ width: 470 })
+    .png()
+    .toBuffer()
+  const layers = [
+    { input: scene, left: 0, top: 0 },
+    { input: hud, left: 0, top: 0 },
+    at(victim, 880, 420),
+    at(hero, 1040, 440),
+    { input: logo, left: 54, top: 96 },
+  ]
+  const title = svg(`
+    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.6" stop-color="rgba(18,23,43,0)"/><stop offset="1" stop-color="rgba(18,23,43,0.85)"/>
+    </linearGradient></defs>
+    <rect width="${W}" height="${H}" fill="url(#g)"/>
+    <text x="62" y="${H - 34}" font-family="Menlo, monospace" font-size="23" fill="#f1e7d0" opacity="0.9" letter-spacing="3">OPEN WORLD · 出勤服アーカイブ GAME</text>
+  `)
+  await save('gto', '#12172b', layers, title)
+}
+
 // 引数でゲーム名を渡すと、そのゲームの画像だけ作り直す（例: node scripts/make-game-og.mjs slot）。
 // 引数なしなら全部。くり抜きが増えると選ばれる素材が変わるので、既存の画像を動かしたくないときは名前を指定する
-const GAMES = { memory, duel, platform, tower, chari, quiz, slot, shiki, kisekae }
+const GAMES = { memory, duel, platform, tower, chari, quiz, slot, shiki, kisekae, gto }
 const only = process.argv.slice(2)
 for (const [name, make] of Object.entries(GAMES)) {
   if (only.length === 0 || only.includes(name)) await make()

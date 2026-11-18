@@ -6,17 +6,16 @@ const variables = (message: string) =>
   [...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort()
 
 describe('i18n', () => {
-  it('prefers a saved locale over browser languages', () => {
-    expect(detectLocale('en', ['ja-JP'])).toBe('en')
-    expect(detectLocale('ja', ['en-US'])).toBe('ja')
-    expect(detectLocale('ko', ['en-US'])).toBe('ko')
+  it('uses the locale the user saved by switching explicitly', () => {
+    expect(detectLocale('en')).toBe('en')
+    expect(detectLocale('ja')).toBe('ja')
+    expect(detectLocale('ko')).toBe('ko')
   })
 
-  it('uses the first supported browser language and otherwise defaults to English', () => {
-    expect(detectLocale(null, ['ja-JP', 'en-US'])).toBe('ja')
-    expect(detectLocale(null, ['ko-KR', 'en-US'])).toBe('ko')
-    expect(detectLocale(null, ['en-US', 'ja-JP'])).toBe('en')
-    expect(detectLocale(null, ['en-US', 'fr-FR'])).toBe('en')
+  it('defaults to Japanese when nothing valid is saved, regardless of the browser language', () => {
+    expect(detectLocale(null)).toBe('ja')
+    expect(detectLocale('')).toBe('ja')
+    expect(detectLocale('fr')).toBe('ja')
   })
 
   it('translates and interpolates English UI text', () => {

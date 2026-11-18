@@ -1338,24 +1338,22 @@ export const translate = (locale: Locale, message: string, variables?: Variables
 export const isLocale = (value: string): value is Locale =>
   LOCALES.some((locale) => locale === value)
 
-export const detectLocale = (stored: string | null, languages: readonly string[]): Locale => {
-  if (stored && isLocale(stored)) return stored
-  for (const language of languages) {
-    const normalized = language.toLowerCase()
-    const locale = LOCALES.find(
-      (candidate) => normalized === candidate || normalized.startsWith(`${candidate}-`),
-    )
-    if (locale) return locale
-  }
-  return 'en'
-}
+/** 最初に出す言語。既定は日本語で、ブラウザの言語設定は見ない。 */
+export const DEFAULT_LOCALE: Locale = 'ja'
+
+/**
+ * 表示言語を決める。ユーザーが言語切り替えで選んで保存したものがあればそれを使い、
+ * 無ければ日本語にする。
+ */
+export const detectLocale = (stored: string | null): Locale =>
+  stored && isLocale(stored) ? stored : DEFAULT_LOCALE
 
 const initialLocale = (): Locale => {
-  if (typeof window === 'undefined') return 'ja'
+  if (typeof window === 'undefined') return DEFAULT_LOCALE
   try {
-    return detectLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY), navigator.languages)
+    return detectLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY))
   } catch {
-    return detectLocale(null, navigator.languages)
+    return DEFAULT_LOCALE
   }
 }
 

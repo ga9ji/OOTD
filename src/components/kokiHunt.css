@@ -517,47 +517,85 @@
 .koki-hunt-inner { max-width: 1280px; }
 .koki-hunt .koki-hunt-nav { border: 0; margin: 0 0 7px; }
 .koki-hunt .koki-hunt-nav button { color: #d0c4bc; }
+/* A leather-bound field journal, open on the approach to camp. */
+.koki-hunt:has(.fm-title) {
+  background: repeating-linear-gradient(105deg, #ffffff03 0 1px, transparent 1px 4px), #201c17;
+}
 .fm-title {
-  position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center;
-  min-height: clamp(420px,79svh,840px); container-type: inline-size;
-  border: 1px solid #5e4241; background-color: #24131d;
-  background-image: url('./kokiHuntSilk.webp'); background-position: center; background-size: cover;
+  position: relative; isolation: isolate; display: grid; align-items: center;
+  min-height: clamp(450px, 82svh, 900px); container-type: inline-size;
+  background: #273327 url('./kokiHuntCamp.webp') no-repeat center / cover;
+  border: 5px solid #352b20;
+  box-shadow: 0 0 0 1px #88724b, inset 0 0 35px #151710, 0 8px 28px #0c0a08aa;
 }
-.fm-silk,.fm-stage { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.fm-stage { overflow: hidden; }
-.fm-stage::before {
-  content: ''; position: absolute; inset: 0; opacity: .16;
-  background-image: radial-gradient(#fff5dc 0.7px, transparent 1px); background-size: 5px 5px;
-  mask-image: linear-gradient(110deg,transparent 35%,#000 95%);
+.fm-title::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, #101b17df, #132019a6 28%, transparent 64%),
+    linear-gradient(0deg, #16180fc2, transparent 29%);
 }
-.fm-stage::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(0deg,#100d16bb,transparent 15%),linear-gradient(90deg,#100f17a1,transparent 65%);
+.fm-camp-light,.fm-cover-frame { position: absolute; pointer-events: none; }
+.fm-camp-light { inset: 0; width: 100%; height: 100%; }
+.fm-cover-frame {
+  z-index: 2; inset: 8px; border: 1px solid #d9bb7f80;
+  --corner: linear-gradient(135deg, #fae3aa, #8f6e40 36%, #c3a365 54%, #574429 76%, #dfc68c);
 }
-.fm-halo {
-  position: absolute; width: 47%; aspect-ratio: 1; border: 2px solid #ffdac0a8; border-radius: 50%;
-  left: 50%; top: 50%; transform: translateY(-50%) rotate(-16deg) skewY(4deg);
-  background: radial-gradient(circle at 70% 32%,#ffe6aa77, #ff947333 42%,transparent 70%);
-  box-shadow: inset 0 0 0 8px #ffcfac13, 0 0 0 10px #eabfaf19;
+.fm-cover-frame::before,.fm-cover-frame::after {
+  content: ''; position: absolute; inset: -2px; pointer-events: none;
+  background: var(--corner) top left, var(--corner) top right;
+  background-size: 34px 34px; background-repeat: no-repeat;
+  clip-path: polygon(0 0,100% 0,100% 33px,calc(100% - 8px) 25px,calc(100% - 8px) 15px,calc(100% - 17px) 8px,calc(100% - 27px) 8px,calc(100% - 34px) 1px,34px 1px,27px 8px,17px 8px,8px 15px,8px 25px,0 33px);
 }
-.fm-cover-look {
-  position: absolute; object-fit: contain; width: auto; max-width: none; transform-origin: bottom;
+.fm-cover-frame::after { transform: rotate(180deg); }
+.fm-title-menu {
+  position: relative; justify-self: start; text-align: center;
+  margin-inline: 6%; padding: clamp(28px, 5vh, 60px) 0;
+  color: #fff0c8;
 }
-.fm-cover-lead { right: 16%; bottom: 6%; height: 87%; filter: drop-shadow(3px 0 0 #f8ccb184) drop-shadow(12px 17px 10px #240d2199); }
-.fm-cover-echo { right: 7%; bottom: 14%; height: 65%; filter: sepia(.65) saturate(1.5) contrast(1.12) drop-shadow(6px 5px 0 #542032); }
-.fm-title-menu { position: relative; z-index: 1; padding: clamp(22px,6vw,84px); }
-.fm-title h1 { margin: 0 0 .29em; color: #fff3df; font: italic 950 clamp(76px,10.7cqw,148px)/.80 'Archivo Black','Arial Black',system-ui,sans-serif; letter-spacing: -.097em; text-shadow: 2px 4px 0 #180c16; }
-.fm-title h1 span,.fm-title h1 strong,.fm-title h1 em { display: block; width: fit-content; }
-.fm-title h1 strong { font-weight: 950; }
-.fm-title h1 em { margin-left: .59em; margin-top: -.015em; font: italic bold .81em/.92 Georgia,serif; color: #ffae83; letter-spacing: -.08em; }
-.koki-hunt .fm-start,.koki-hunt .koki-hunt-primary {
+.fm-insignia {
+  position: relative; width: 54px; height: 54px; margin: 0 auto 16px;
+  border: 3px double #dfc28c; border-radius: 50%;
+  box-shadow: inset 0 0 0 4px #26342ae6, 0 2px 4px #172219;
+  background: radial-gradient(ellipse at 38% 29%, #526050, #26362e 75%);
+}
+.fm-insignia i {
+  position: absolute; width: 5px; height: 39px; left: calc(50% - 2.5px); top: calc(50% - 19.5px);
+  background: #f1dbab; border-radius: 50% 50% 100% 100%; transform: rotate(42deg);
+}
+.fm-insignia i::before {
+  content: ''; position: absolute; inset: 2px 1.5px auto; height: 7px; background: #384b3c; border-radius: 50%;
+}
+.fm-insignia i + i { transform: rotate(-42deg); }
+.fm-title h1 {
+  margin: 0; color: #f8e6b4;
+  font: 700 clamp(54px, 8.5cqw, 115px)/.86 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  text-shadow: 0 1px #43301c, 0 3px #735934, 0 5px #252319, 0 7px 18px #10160e;
+}
+.fm-title h1 span {
+  display: block; margin-bottom: .62em; color: #ffebc4;
+  font-size: .32em; font-variant: small-caps; letter-spacing: .26em; text-indent: .26em;
+}
+.fm-title h1 strong { display: block; font-weight: inherit; letter-spacing: -.05em; }
+.fm-title h1 strong:last-child { margin-top: .06em; }
+.koki-hunt .fm-start {
+  position: relative; min-height: 48px; padding: 9px 40px; margin-top: clamp(24px, 4.2vh, 46px);
+  color: #302719; border: 3px double #735930; border-radius: 2px;
+  background: radial-gradient(ellipse at top, #fae8ba, #d0ac71);
+  box-shadow: 0 0 0 2px #302b1f, 0 5px 12px #10171199;
+  font: 700 16px/1.4 'Yu Mincho', Georgia, serif; letter-spacing: .09em; cursor: pointer;
+}
+.fm-start::before,.fm-start::after {
+  content: ''; position: absolute; top: calc(50% - 3px); width: 6px; height: 6px;
+  background: #755632; transform: rotate(45deg);
+}
+.fm-start::before { left: 13px; }
+.fm-start::after { right: 13px; }
+.koki-hunt .fm-start:is(:hover,:focus-visible) { background: #ffedc5; }
+.koki-hunt .fm-start:focus-visible { outline: 2px solid #fff2cf; outline-offset: 4px; }
+.koki-hunt .koki-hunt-primary {
   border: 0; border-radius: 0; background: #ffae80; color: #1c1215; font-weight: 850; cursor: pointer;
   clip-path: polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);
 }
-.koki-hunt .fm-start { display: inline-flex; align-items: center; gap: 16px; min-height: 54px; padding: 0 22px; margin-top: 12px; font: 800 16px/1 system-ui,sans-serif; letter-spacing: .1em; }
-.fm-start i { width: 0; height: 0; border-block: 6px solid transparent; border-left: 9px solid currentColor; }
-.fm-start span { margin-left: 20px; font-size: 21px; }
-.koki-hunt :is(.fm-start,.koki-hunt-primary):is(:hover,:focus-visible) { background: #ffe2b6; box-shadow: inset 0 0 0 3px #c96e4c; }
+.koki-hunt .koki-hunt-primary:is(:hover,:focus-visible) { background: #ffe2b6; box-shadow: inset 0 0 0 3px #c96e4c; }
 .koki-hunt :is(.fm-start,.koki-hunt-primary):active { transform: translateY(2px); }
 .koki-hunt-quest-section,.koki-hunt-fitting,.koki-hunt-result { max-width: 1080px; margin: clamp(12px,5vh,50px) auto; }
 .fm-back { min-height: 44px; padding-inline: 0 10px; color: #ffc19c; letter-spacing: .1em; }
@@ -592,17 +630,18 @@
 .koki-hunt-status[data-opening='true'] { background: #e5bf84; }
 .fm-pause { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; background: #18131aaa; }
 @media (max-width: 640px) {
-  .fm-title { min-height: clamp(490px,80svh,790px); align-items: flex-end; }
-  .fm-title-menu { padding: 0 6% 8%; }
-  .fm-title h1 { font-size: clamp(63px,15.8cqw,98px); }
-  .fm-cover-lead { right: 18%; height: 65%; bottom: 32%; }
-  .fm-cover-echo { right: 4%; height: 49%; bottom: 37%; }
-  .fm-halo { width: 78%; top: 36%; left: 20%; }
-  .fm-stage::after { background: linear-gradient(0deg,#111018 0%,#111018ad 24%,transparent 57%); }
+  .fm-title { min-height: clamp(430px, calc(100svh - 90px), 850px); align-items: end; background-position: 72% center; }
+  .fm-title::before { background: linear-gradient(0deg, #101a13fa 1%, #15231bd6 24%, #18261f4d 58%, transparent 78%); }
+  .fm-title-menu { justify-self: center; margin: 0; padding: 26px 0 max(34px, 6svh); }
+  .fm-title h1 { font-size: clamp(54px, 16cqw, 88px); }
+  .fm-insignia { width: 44px; height: 44px; margin-bottom: 11px; }
   .koki-hunt-quest-section,.koki-hunt-fitting { margin-top: 10px; }
 }
 @media (max-height: 500px) and (orientation: landscape) {
-  .fm-title { min-height: max(245px, calc(100svh - 75px)); align-items: center; }
-  .fm-title-menu { padding: 12px 5%; }
-  .fm-title h1 { font-size: clamp(46px,17vh,78px); }
+  .fm-title { min-height: max(212px, calc(100svh - 85px)); align-items: center; background-position: center; }
+  .fm-title::before { background: linear-gradient(90deg, #101b17e6, #14221b99 38%, transparent 72%); }
+  .fm-title-menu { justify-self: start; margin-inline: 8%; padding: 17px 0; }
+  .fm-title h1 { font-size: clamp(40px, 13svh, 66px); }
+  .fm-insignia { display: none; }
+  .koki-hunt .fm-start { margin-top: 16px; min-height: 44px; }
 }

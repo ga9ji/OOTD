@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { useI18n } from '../lib/i18n'
 import { HUNT_TITLE } from '../lib/kokiHunt'
-import { PLAYER_LOOKS, photoUrl } from '../lib/kokiHuntLooks'
-import silkFragment from './kokiHuntSilk.frag?raw'
+import campLight from './kokiHuntCampLight.frag?raw'
 
 export default function KokiHuntTitle({ onStart }: { onStart: () => void }) {
+  const { t } = useI18n()
   const canvas = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const node = canvas.current
@@ -19,7 +20,7 @@ export default function KokiHuntTitle({ onStart }: { onStart: () => void }) {
     const material = new THREE.ShaderMaterial({
       uniforms: { clock: { value: 0 }, aspect: { value: 1 } },
       vertexShader: 'varying vec2 coord; void main(){coord=uv;gl_Position=vec4(position.xy,0.,1.);}',
-      fragmentShader: silkFragment, depthTest: false, depthWrite: false,
+      fragmentShader: campLight, depthTest: false, depthWrite: false,
     })
     const geometry = new THREE.PlaneGeometry(2, 2)
     const scene = new THREE.Scene()
@@ -62,15 +63,16 @@ export default function KokiHuntTitle({ onStart }: { onStart: () => void }) {
     }
   }, [])
   return <section className="fm-title">
-    <canvas className="fm-silk" ref={canvas} aria-hidden="true" />
-    <div className="fm-stage" aria-hidden="true">
-      <div className="fm-halo" />
-      <img className="fm-cover-look fm-cover-echo" src={photoUrl(PLAYER_LOOKS[1])} alt="" />
-      <img className="fm-cover-look fm-cover-lead" src={photoUrl(PLAYER_LOOKS[0])} alt="" />
-    </div>
+    <canvas className="fm-camp-light" ref={canvas} aria-hidden="true" />
+    <div className="fm-cover-frame" aria-hidden="true" />
     <div className="fm-title-menu">
-      <h1 aria-label={HUNT_TITLE}><span>Fashion</span>{' '}<strong>Monster</strong>{' '}<em>hunter</em></h1>
-      <button type="button" className="fm-start" onClick={onStart}><i aria-hidden="true" /> GAME START <span aria-hidden="true">↗</span></button>
+      <div className="fm-insignia" aria-hidden="true"><i /><i /></div>
+      <h1 aria-label={HUNT_TITLE}>
+        <span>Fashion</span>{' '}
+        <strong>Monster</strong>{' '}
+        <strong>Hunter</strong>
+      </h1>
+      <button type="button" className="fm-start" onClick={onStart}>{t('クエストを選ぶ')}</button>
     </div>
   </section>
 }

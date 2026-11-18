@@ -1,6 +1,6 @@
 import { RIVAL_LOOKS } from './kokiHuntLooks'
 
-export const HUNT_TITLE = 'Fashion Monster hunter'
+export const HUNT_TITLE = 'Fashion Monster Hunter'
 export const HUNT_LEAD = '出勤服を選んで、服好きのkokiたちと退勤後のファッションバトル。'
 
 export const FIELD = { width: 760, height: 444 }

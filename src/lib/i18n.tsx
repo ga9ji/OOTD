@@ -1167,6 +1167,7 @@ export const EN: Record<string, string> = {
   '薄明翼': 'Galewing',
   '風鳴りの高台': 'Windwhistle Bluffs',
   '翼の周囲を薙ぎ払う。円の外へ回避しよう。': 'Its wings sweep the area. Dodge out of the circle.',
+  'クエストを選ぶ': 'Choose a quest',
   'クエスト一覧': 'Quest list',
   '狩猟へ': 'Start hunt',
   '{name}の狩猟へ': 'Hunt {name}',

@@ -67,6 +67,12 @@ const GAMES: { view: View; title: string; tag: string; lead: string }[] = [
     tag: 'PLATFORMER',
     lead: '出勤服からくり抜いた自分が今日のランウェイ（通勤路）を走るアクション。季節と色で特性が変わる全6ステージ。',
   },
+  {
+    view: 'gto',
+    title: 'Grand Theft Outfit',
+    tag: 'OPEN WORLD',
+    lead: 'いまの渋谷駅前を3Dで歩き、車を奪って坂を走り、通行人の出勤服をいただいて着替えるクライムアクション。暴れると手配されて追われる。',
+  },
 ]
 
 export default function GameHubView({ onSelect }: Props) {

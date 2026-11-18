@@ -25,6 +25,8 @@ const SlotGameView = lazy(() => import('./components/SlotGameView'))
 const ShikiGameView = lazy(() => import('./components/ShikiGameView'))
 const KisekaeGameView = lazy(() => import('./components/KisekaeGameView'))
 const ClashGameView = lazy(() => import('./components/ClashGameView'))
+// 3D の街（three.js と渋谷の地図データ）を抱えるので、開いたときだけ読み込む
+const GtoGameView = lazy(() => import('./components/GtoGameView'))
 import { useSplits } from './lib/splitsStore'
 import { useHair } from './lib/hairStore'
 import { useHashRoute } from './lib/router'
@@ -50,6 +52,7 @@ export type View =
   | 'shiki'
   | 'kisekae'
   | 'clash'
+  | 'gto'
 
 export type Filters = {
   from: string
@@ -175,7 +178,8 @@ export default function App() {
     view === 'slot' ||
     view === 'shiki' ||
     view === 'kisekae' ||
-    view === 'clash'
+    view === 'clash' ||
+    view === 'gto'
   const gameInteractionRef = useGameInteractionGuard(isPlayingGame)
   // 全画面はこのルート要素ごと切り替える。ゲームから出たら解ける。
   const fullscreen = useGameFullscreenController(gameInteractionRef, isPlayingGame)
@@ -270,7 +274,8 @@ export default function App() {
               view === 'slot' ||
               view === 'shiki' ||
               view === 'kisekae' ||
-              view === 'clash'
+              view === 'clash' ||
+              view === 'gto'
                 ? 'tab active'
                 : 'tab'
             }
@@ -346,6 +351,7 @@ export default function App() {
         {view === 'shiki' && <ShikiGameView data={data} onBack={() => setView('game')} />}
         {view === 'kisekae' && <KisekaeGameView data={data} onBack={() => setView('game')} />}
         {view === 'clash' && <ClashGameView data={data} onBack={() => setView('game')} />}
+        {view === 'gto' && <GtoGameView onBack={() => setView('game')} />}
       </Suspense>
 
       {(saveState === 'error' || hairSaveState === 'error') && (

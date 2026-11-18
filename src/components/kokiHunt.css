@@ -1,0 +1,382 @@
+.koki-hunt {
+  --hunt-ink: #202b27;
+  --hunt-paper: #eee8d5;
+  --hunt-gold: #e0b979;
+  --hunt-muted: #cec5aa;
+  background: radial-gradient(ellipse at 10% 0%, #3b493e, transparent 58%), #192824;
+  color: var(--hunt-paper);
+  min-height: min(740px, 100svh);
+  padding: clamp(12px, 3vw, 34px) clamp(10px, 3vw, 38px) clamp(24px, 4vw, 46px);
+}
+
+.koki-hunt-inner {
+  max-width: 1030px;
+  margin-inline: auto;
+}
+
+.koki-hunt .koki-hunt-nav {
+  border-bottom: 1px solid #788171;
+  margin-bottom: clamp(14px, 3vw, 27px);
+}
+
+.koki-hunt .koki-hunt-nav button {
+  min-height: 42px;
+  color: var(--hunt-paper);
+}
+
+.koki-hunt :focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.koki-hunt-cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, .34fr);
+  align-items: center;
+  gap: 20px;
+  padding: clamp(18px, 4vw, 44px);
+  background:
+    repeating-linear-gradient(157deg, transparent 0 22px, #e7e4c715 23px 24px, transparent 25px 41px),
+    linear-gradient(117deg, #34463a, #545840);
+  border: 1px solid #7e866c;
+}
+
+.koki-hunt-cover h1,
+.koki-hunt-result h1,
+.koki-hunt-arena h1 {
+  font-family: 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, serif;
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: -.035em;
+}
+
+.koki-hunt-cover h1 {
+  font-size: clamp(38px, 7.4vw, 94px);
+}
+
+.koki-hunt .koki-hunt-kicker {
+  font: 700 12px/1.5 var(--mono, monospace);
+  color: var(--hunt-gold);
+  letter-spacing: .12em;
+  margin: 0 0 6px;
+}
+
+.koki-hunt-cover p:last-child {
+  color: #e5dcc0;
+  line-height: 1.8;
+  max-width: 42ch;
+  margin: 13px 0 0;
+}
+
+.koki-hunt-cover figure {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-items: end;
+  margin: 0;
+  isolation: isolate;
+}
+
+.koki-hunt-cover figure::before {
+  content: '';
+  position: absolute;
+  inset: 12% 0 14%;
+  border: 1px solid #c8bb7f55;
+  background: radial-gradient(ellipse, #ad995570, transparent 64%);
+  border-radius: 100%;
+  z-index: -1;
+}
+
+.koki-hunt-cover img {
+  height: clamp(110px, 18vw, 210px);
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 7px #efe0ac61);
+}
+
+.koki-hunt-cover figcaption {
+  font: 700 15px/1.1 Georgia, serif;
+  letter-spacing: .1em;
+}
+
+.koki-hunt-quest-section {
+  margin-top: clamp(18px, 4vw, 33px);
+}
+
+.koki-hunt-quest-section h2 {
+  margin: 0 0 10px;
+  font-size: clamp(18px, 2.4vw, 25px);
+}
+
+.koki-hunt-quests {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.koki-hunt [data-hunt='cinder'] {
+  --hunt-art: #8e6146;
+  --hunt-art-dark: #422e27;
+}
+
+.koki-hunt [data-hunt='gale'] {
+  --hunt-art: #587f77;
+  --hunt-art-dark: #243f45;
+}
+
+.koki-hunt-quest,
+.koki-hunt-result {
+  display: grid;
+  grid-template-columns: minmax(100px, .82fr) minmax(0, 1.18fr);
+  background: var(--hunt-paper);
+  color: var(--hunt-ink);
+}
+
+.koki-hunt-quest-art {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  background:
+    repeating-linear-gradient(143deg, transparent 0 14px, #f1d7a82b 15px, transparent 16px 27px),
+    radial-gradient(ellipse at 55% 48%, var(--hunt-art), var(--hunt-art-dark));
+}
+
+.koki-hunt-quest-art canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 270px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 12px #15181987);
+}
+
+.koki-hunt-quest-copy,
+.koki-hunt-result-copy {
+  padding: clamp(15px, 2.8vw, 28px);
+}
+
+.koki-hunt-quest-copy h3 {
+  margin: 0;
+  font: 700 clamp(22px, 3vw, 33px)/1.2 'Yu Mincho', Georgia, serif;
+}
+
+.koki-hunt-quest-copy p:not(.koki-hunt-kicker),
+.koki-hunt-result-copy p:not(.koki-hunt-kicker) {
+  margin: 9px 0 16px;
+  line-height: 1.65;
+  font-size: 14px;
+}
+
+.koki-hunt-quest .koki-hunt-kicker,
+.koki-hunt-result .koki-hunt-kicker {
+  color: #576043;
+}
+
+.koki-hunt-quest-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.koki-hunt-quest-actions small {
+  font-size: 12px;
+}
+
+.koki-hunt .koki-hunt-primary,
+.koki-hunt .koki-hunt-secondary {
+  min-height: 44px;
+  padding: 5px 13px;
+  font-weight: 700;
+  border: 1px solid #576344;
+}
+
+.koki-hunt .koki-hunt-primary {
+  background: #344635;
+  color: var(--hunt-paper);
+  outline-color: #344635;
+}
+
+.koki-hunt .koki-hunt-secondary {
+  color: var(--hunt-ink);
+}
+
+.koki-hunt .koki-hunt-primary:hover {
+  background: #4e6141;
+}
+
+.koki-hunt-arena {
+  max-width: 880px;
+  margin-inline: auto;
+}
+
+.koki-hunt-arena-head,
+.koki-hunt-arena-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+}
+
+.koki-hunt-arena h1 {
+  font-size: clamp(25px, 5vw, 40px);
+}
+
+.koki-hunt-arena-nav {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.koki-hunt-time {
+  font: 700 13px var(--mono, monospace);
+  color: var(--hunt-gold);
+}
+
+.koki-hunt-arena-nav button {
+  color: var(--hunt-paper);
+  min-height: 37px;
+  padding: 5px 8px;
+  border: 1px solid #89907c;
+  font-size: 12px;
+}
+
+.koki-hunt-meters {
+  display: grid;
+  grid-template-columns: 1fr .7fr 1fr;
+  gap: clamp(6px, 2vw, 16px);
+  margin-block: 12px 8px;
+}
+
+.koki-hunt-meter {
+  --meter-fill: #a9cb88;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: clamp(10px, 1.8vw, 13px);
+}
+
+.koki-hunt-meter[data-kind='stamina'] { --meter-fill: #ecd086; }
+.koki-hunt-meter[data-kind='monster'] { --meter-fill: #f19a7b; }
+.koki-hunt-meter b { font-variant-numeric: tabular-nums; }
+
+.koki-hunt-meter progress {
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border: 0;
+  background: #4f594e;
+  color: var(--meter-fill);
+}
+
+.koki-hunt-meter progress::-webkit-progress-bar { background: #4f594e; }
+.koki-hunt-meter progress::-webkit-progress-value { background: var(--meter-fill); }
+.koki-hunt-meter progress::-moz-progress-bar { background: var(--meter-fill); }
+
+.koki-hunt-field {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #9b967b;
+  background: #344532;
+}
+
+.koki-hunt-status {
+  min-height: 36px;
+  padding: 7px 9px;
+  background: #29382f;
+  color: var(--hunt-paper);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.koki-hunt-status[data-warning='true'] { background: #773e32; color: #fff0d5; }
+.koki-hunt-status[data-opening='true'] { background: #d4c18b; color: #202b27; }
+
+.koki-hunt-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.koki-hunt-controls p {
+  font-size: 13px;
+  margin: 0;
+}
+
+.koki-hunt-strikes {
+  display: flex;
+  gap: 7px;
+}
+
+.koki-hunt .koki-hunt-strikes button,
+.koki-hunt .koki-hunt-dpad button {
+  min-height: 44px;
+  padding: 7px 11px;
+  border: 1px solid #89907c;
+  color: #fff1d5;
+  background: #3c4c3e;
+  touch-action: none;
+  font-weight: 700;
+}
+
+.koki-hunt .koki-hunt-strikes button:active,
+.koki-hunt .koki-hunt-dpad button:active {
+  background: #667952;
+}
+
+.koki-hunt .koki-hunt-strikes button:disabled,
+.koki-hunt .koki-hunt-dpad button:disabled {
+  opacity: .55;
+}
+
+.koki-hunt .koki-hunt-strikes .koki-hunt-heavy {
+  background: #744735;
+}
+
+.koki-hunt-strikes kbd {
+  margin-inline-start: 3px;
+  color: #e6cf9d;
+  font-size: 11px;
+}
+
+.koki-hunt-dpad {
+  display: none;
+  grid-template-columns: repeat(3, minmax(44px, 1fr));
+  grid-template-rows: repeat(2, 44px);
+  gap: 4px;
+}
+
+.koki-hunt-dpad [data-direction='ArrowUp'] { grid-column: 2; }
+.koki-hunt-dpad [data-direction='ArrowLeft'] { grid-area: 2 / 1; }
+.koki-hunt-dpad [data-direction='ArrowDown'] { grid-area: 2 / 2; }
+.koki-hunt-dpad [data-direction='ArrowRight'] { grid-area: 2 / 3; }
+
+.koki-hunt-result {
+  max-width: 750px;
+  margin-inline: auto;
+}
+
+.koki-hunt-result h1 {
+  font-size: clamp(33px, 6vw, 60px);
+  outline: none;
+}
+
+@media (max-width: 670px) {
+  .koki-hunt-quests { grid-template-columns: minmax(0, 1fr); }
+  .koki-hunt-cover { gap: 8px; }
+  .koki-hunt-cover p:last-child { font-size: 13px; }
+  .koki-hunt-quest-art canvas { max-height: 145px; }
+  .koki-hunt-arena-head { align-items: flex-end; }
+  .koki-hunt-arena-nav { gap: 5px; }
+}
+
+@media (pointer: coarse), (max-width: 700px) {
+  .koki-hunt-dpad { display: grid; }
+  .koki-hunt-controls p,
+  .koki-hunt-controls kbd { display: none; }
+  .koki-hunt-strikes { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .koki-hunt .koki-hunt-strikes button { padding-inline: 7px; }
+}

@@ -84,7 +84,9 @@ export function decodeHash(hash: string): Route {
                                     ? 'clash'
                                     : path === 'gto'
                                       ? 'gto'
-                                      : 'fits'
+                                      : path === 'koki-hunt'
+                                        ? 'koki-hunt'
+                                        : 'fits'
   const p = new URLSearchParams(query ?? '')
 
   // items パスのクエリは ItemsFilters に、それ以外（fits）は Filters に振り分ける。

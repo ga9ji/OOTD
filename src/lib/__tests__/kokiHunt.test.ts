@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { act, createBattle, direction, FIELD, HUNTS, joystickVector, PORTRAIT_FIELD, resizeBattlefield, tickBattle, type Battle } from '../kokiHunt'
+import { act, cameraRelativeMove, createBattle, direction, HUNTS, joystickVector, tickBattle, type Battle } from '../kokiHunt'
 import { decodeHash, encodeHash } from '../router'
 
 const STILL = { x: 0, y: 0 }
@@ -18,7 +18,7 @@ describe('退勤ハント', () => {
     const battle = createBattle(HUNTS[0])
     const swing = act(battle, 'slash', STILL)
     expect(swing.stamina).toBeLessThan(battle.stamina)
-    expect(advance(swing, .25).monsterHp).toBe(battle.monsterHp)
+    expect(advance(swing, .3).monsterHp).toBe(battle.monsterHp)
     expect(act({ ...battle, stamina: 0 }, 'heavy', STILL).attack).toBeNull()
   })
 
@@ -64,12 +64,20 @@ describe('退勤ハント', () => {
     expect(moving.player.x - start.player.x).toBeCloseTo(208 * partial.x * .1)
   })
 
-  it('縦持ちから横持ちにしても狩猟状態を引き継ぎ、座標を画面内に収める', () => {
-    const start = createBattle(HUNTS[0], PORTRAIT_FIELD)
-    const nearEdge = { ...start, player: { x: 100, y: 698 }, elapsed: 5, hp: 77 }
-    const turned = resizeBattlefield(nearEdge, FIELD)
-    expect(turned).toMatchObject({ field: FIELD, elapsed: 5, hp: 77, player: { x: 258, y: 424 } })
-    const walking = tickBattle(turned, { x: 0, y: 1 }, .2)
-    expect(walking.player.y).toBe(424)
+  it('カメラが回ってもスティックの上と右が画面上の進行方向に対応する', () => {
+    expect(cameraRelativeMove({ x: 0, y: -1 }, 0).y).toBeCloseTo(1)
+    const turned = cameraRelativeMove({ x: .5, y: 0 }, Math.PI / 2)
+    expect(turned.x).toBeCloseTo(0)
+    expect(turned.y).toBeCloseTo(.5)
+  })
+
+  it('命中後に斬撃をつなぐと三段目のダメージが増える', () => {
+    const start = createBattle(HUNTS[0])
+    const close: Battle = { ...start, player: { x: 530, y: 280 }, phase: 'recover', phaseTimer: 2 }
+    const first = advance(act(close, 'slash', STILL), .3)
+    const second = advance(act(first, 'slash', STILL), .3)
+    const third = advance(act(second, 'slash', STILL), .3)
+    expect(third.combo).toBe(3)
+    expect(second.monsterHp - third.monsterHp).toBeGreaterThan(first.monsterHp - second.monsterHp)
   })
 })

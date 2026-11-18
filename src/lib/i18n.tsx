@@ -1131,6 +1131,8 @@ export const EN: Record<string, string> = {
   '直前ガードでジャストガード · ガード＋左右で回避 · 空中↓＋攻撃でメテオ · 崖はつかめる': 'Guard at the last moment for a just guard · guard + left/right to dodge · air ↓ + attack for a meteor · ledges can be grabbed',
 
   // 退勤ハント
+  '3D描画を開始できません。WebGL 2 を使えるブラウザで開いてください。':
+    'Could not start 3D rendering. Open the game in a browser with WebGL 2.',
   '退勤ハント': 'Off the Clock Hunt',
   '出勤服のkokiで、退勤後の狩猟へ。大型獣の予兆を読んで回避し、反撃の一撃を叩き込もう。': 'Hunt after work as koki in his workday fit. Read the monsters’ tells, dodge their attacks, and hit back.',
   '狩猟アクション': 'Hunting action',

@@ -2,10 +2,9 @@ export const HUNT_TITLE = '退勤ハント'
 export const HUNT_LEAD = '出勤服のkokiで、退勤後の狩猟へ。大型獣の予兆を読んで回避し、反撃の一撃を叩き込もう。'
 
 export const FIELD = { width: 760, height: 444 }
-export const PORTRAIT_FIELD = { width: 444, height: 720 }
 export const HUNTS = [
-  { id: 'cinder', name: '煤角獣', place: '夕暮れの採石場', telegraph: '直線に突進する。横へ避けてから近づこう。', hp: 110, speed: 51, damage: 23, windup: 1.05, recovery: 1.48 },
-  { id: 'gale', name: '薄明翼', place: '風鳴りの高台', telegraph: '翼の周囲を薙ぎ払う。円の外へ回避しよう。', hp: 155, speed: 78, damage: 28, windup: 0.88, recovery: 1.38 },
+  { id: 'cinder', name: '煤角獣', place: '夕暮れの採石場', telegraph: '直線に突進する。横へ避けてから近づこう。', hp: 185, speed: 60, damage: 23, windup: 1.05, recovery: 1.48 },
+  { id: 'gale', name: '薄明翼', place: '風鳴りの高台', telegraph: '翼の周囲を薙ぎ払う。円の外へ回避しよう。', hp: 230, speed: 78, damage: 28, windup: 0.88, recovery: 1.38 },
 ] as const
 
 export type HuntId = (typeof HUNTS)[number]['id']
@@ -27,10 +26,15 @@ export type Battle = {
   monsterHp: number
   stamina: number
   attack: 'slash' | 'heavy' | null
+  combo: number
+  comboTimer: number
+  queuedSlash: boolean
   playerTimer: number
   dodgeTimer: number
   phase: Phase
   phaseTimer: number
+  pattern: 'charge' | 'sweep'
+  attacksMade: number
   elapsed: number
   impact: number
   impactedMonster: boolean
@@ -58,8 +62,14 @@ export function joystickVector(offset: Point, radius: number): Point {
   return { x: (offset.x / distance) * speed, y: (offset.y / distance) * speed }
 }
 
+export function cameraRelativeMove(move: Point, yaw: number): Point {
+  const sin = Math.sin(yaw)
+  const cos = Math.cos(yaw)
+  return { x: -move.x * cos - move.y * sin, y: move.x * sin - move.y * cos }
+}
+
 export const ATTACKS = {
-  slash: { range: 103, cost: 9, damage: 13, time: 0.19 },
+  slash: { range: 103, cost: 9, damage: 13, time: 0.28 },
   heavy: { range: 123, cost: 25, damage: 29, time: 0.57 },
 }
 const DODGE = { cost: 19, time: 0.31, speed: 475 }
@@ -68,46 +78,38 @@ export const CHARGE_WIDTH = 116
 export const CHARGE_SPEED = 555
 export const CHARGE_TIME = .43
 
-export function createBattle(hunt: Hunt, field: Field = FIELD): Battle {
-  const portrait = field.height > field.width
+export function createBattle(hunt: Hunt): Battle {
   return {
-    hunt, field,
-    player: portrait ? { x: 144, y: 444 } : { x: 200, y: 285 },
-    monster: portrait ? { x: 300, y: 213 } : { x: 535, y: 200 },
+    hunt, field: FIELD,
+    player: { x: 200, y: 285 },
+    monster: { x: 535, y: 200 },
     aim: { x: -1, y: 0 }, dodgeDir: { x: 1, y: 0 },
-    hp: 100, monsterHp: hunt.hp, stamina: 100, attack: null, playerTimer: 0, dodgeTimer: 0,
-    phase: 'prowl', phaseTimer: 0.65, elapsed: 0, impact: 0, impactedMonster: false, signal: null, signalTimer: 0, struck: false, result: null,
-  }
-}
-
-export function resizeBattlefield(battle: Battle, field: Field): Battle {
-  if (battle.field === field) return battle
-  // 回転で当たり判定の距離が急変しないよう、位置関係を保って新しい中心に移す。
-  // 狭くなった軸で端からはみ出した座標だけ、新しい境界に収める。
-  const offset = {
-    x: (field.width - battle.field.width) / 2,
-    y: (field.height - battle.field.height) / 2,
-  }
-  return {
-    ...battle,
-    field,
-    player: step(field, battle.player, offset, 1, 20),
-    monster: step(field, battle.monster, offset, 1, 47),
+    hp: 100, monsterHp: hunt.hp, stamina: 100, attack: null, combo: 0, comboTimer: 0, queuedSlash: false,
+    playerTimer: 0, dodgeTimer: 0,
+    phase: 'prowl', phaseTimer: 0.65, pattern: hunt.id === 'cinder' ? 'charge' : 'sweep', attacksMade: 0,
+    elapsed: 0, impact: 0, impactedMonster: false, signal: null, signalTimer: 0, struck: false, result: null,
   }
 }
 
 export function act(battle: Battle, action: Action, move: Point): Battle {
+  if (!battle.result && action === 'slash' && battle.attack === 'slash' && battle.playerTimer < .16) {
+    return { ...battle, queuedSlash: true }
+  }
   if (battle.result || battle.attack || battle.dodgeTimer > 0) return battle
   const cost = action === 'dodge' ? DODGE.cost : ATTACKS[action].cost
   if (battle.stamina < cost) return { ...battle, signal: 'tired', signalTimer: .9 }
   const next = { ...battle, stamina: battle.stamina - cost }
   if (action === 'dodge') {
+    next.combo = 0
+    next.comboTimer = 0
     next.dodgeTimer = DODGE.time
     next.dodgeDir = move.x || move.y ? direction({ x: 0, y: 0 }, move) : direction(battle.monster, battle.player)
     next.signal = 'dodge'
     next.signalTimer = .65
   } else {
     next.attack = action
+    next.combo = action === 'slash' ? (battle.comboTimer > 0 ? (battle.combo % 3) + 1 : 1) : 0
+    next.comboTimer = 0
     next.playerTimer = ATTACKS[action].time
   }
   return next
@@ -118,6 +120,9 @@ function damagePlayer(battle: Battle) {
   battle.hp = Math.max(0, battle.hp - battle.hunt.damage)
   battle.struck = true
   battle.attack = null
+  battle.combo = 0
+  battle.comboTimer = 0
+  battle.queuedSlash = false
   battle.playerTimer = 0
   battle.impact = 0.2
   battle.impactedMonster = false
@@ -132,6 +137,7 @@ export function tickBattle(battle: Battle, movement: Point, dt: number): Battle 
   const { hunt, field } = next
   next.elapsed += dt
   next.impact = Math.max(0, next.impact - dt)
+  next.comboTimer = Math.max(0, next.comboTimer - dt)
   next.signalTimer = Math.max(0, next.signalTimer - dt)
   if (next.signalTimer === 0) next.signal = null
   if (next.dodgeTimer > 0) {
@@ -143,12 +149,13 @@ export function tickBattle(battle: Battle, movement: Point, dt: number): Battle 
       const attack = ATTACKS[next.attack]
       if (dist(next.player, next.monster) <= attack.range) {
         // 回復中の隙を突くと、強撃の威力が上がる。
-        const damage = next.attack === 'heavy' && next.phase === 'recover' ? 41 : attack.damage
+        const damage = next.attack === 'heavy' && next.phase === 'recover' ? 41 : attack.damage + (next.combo === 3 ? 10 : 0)
         next.monsterHp = Math.max(0, next.monsterHp - damage)
         next.impact = 0.24
         next.impactedMonster = true
         next.signal = next.attack
         next.signalTimer = .65
+        next.comboTimer = next.attack === 'slash' ? .62 : 0
         if (next.monsterHp === 0) {
           next.result = 'won'
           return next
@@ -158,6 +165,10 @@ export function tickBattle(battle: Battle, movement: Point, dt: number): Battle 
         next.signalTimer = .65
       }
       next.attack = null
+      if (next.queuedSlash) {
+        next.queuedSlash = false
+        Object.assign(next, act(next, 'slash', movement))
+      }
     }
   } else {
     next.stamina = Math.min(100, next.stamina + 25 * dt)
@@ -172,17 +183,21 @@ export function tickBattle(battle: Battle, movement: Point, dt: number): Battle 
     const distance = dist(next.monster, next.player)
     next.aim = direction(next.monster, next.player)
     if (distance > 74) next.monster = step(field, next.monster, next.aim, hunt.speed * dt, 47)
-    if (next.phaseTimer <= 0 && distance < (hunt.id === 'cinder' ? 248 : 152)) {
+    const alternate = next.attacksMade % 3 === 2 && next.monsterHp <= hunt.hp * .65
+    const pattern = (hunt.id === 'cinder') !== alternate ? 'charge' : 'sweep'
+    if (next.phaseTimer <= 0 && distance < (pattern === 'charge' ? 248 : 152)) {
       next.phase = 'windup'
+      next.pattern = pattern
+      next.attacksMade += 1
       next.phaseTimer = hunt.windup * (next.monsterHp <= hunt.hp * .35 ? .8 : 1)
       next.struck = false
     }
   } else if (next.phase === 'windup' && next.phaseTimer <= 0) {
     next.phase = 'strike'
-    next.phaseTimer = hunt.id === 'cinder' ? CHARGE_TIME : .26
+    next.phaseTimer = next.pattern === 'charge' ? CHARGE_TIME : .26
   } else if (next.phase === 'strike') {
-    if (hunt.id === 'cinder') next.monster = step(field, next.monster, next.aim, CHARGE_SPEED * Math.min(dt, next.phaseTimer + dt), 47)
-    const radius = hunt.id === 'cinder' ? CHARGE_WIDTH / 2 : SWEEP_RADIUS
+    if (next.pattern === 'charge') next.monster = step(field, next.monster, next.aim, CHARGE_SPEED * Math.min(dt, next.phaseTimer + dt), 47)
+    const radius = next.pattern === 'charge' ? CHARGE_WIDTH / 2 : SWEEP_RADIUS
     if (dist(next.monster, next.player) <= radius) damagePlayer(next)
     if (next.phaseTimer <= 0) {
       next.phase = 'recover'

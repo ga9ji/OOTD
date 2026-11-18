@@ -280,8 +280,16 @@
   display: block;
   width: 100%;
   height: auto;
+  aspect-ratio: 16 / 9;
   border: 1px solid #9b967b;
   background: #344532;
+}
+
+.koki-hunt-webgl-error {
+  padding: clamp(24px, 6vw, 64px);
+  background: #2d2521;
+  color: #ffeed2;
+  text-align: center;
 }
 
 .koki-hunt-status {
@@ -457,7 +465,7 @@
     height: 100%;
     border: 0;
     background: transparent;
-    object-fit: contain;
+    aspect-ratio: auto;
   }
 
   .koki-hunt-status {

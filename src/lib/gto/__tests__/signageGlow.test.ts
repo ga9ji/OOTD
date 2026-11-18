@@ -4,7 +4,9 @@ import { TINT_TUNING, tintFactor } from '../signageGlow'
 import { buildNeonTubes, buildSignage } from '../signage'
 import { buildGlowEmitters, buildGlowField, emitterFalloff, GLOW_TUNING, glowColor, sampleGlow, softCap, type GlowEmitter } from '../signageGlow'
 import { buildSignTubes } from '../signageNeon'
-import { world } from './helpers'
+import { allowLongSimulations, world } from './helpers'
+
+allowLongSimulations()
 
 const emitter: GlowEmitter = { ox: 0, oz: 0, nx: 0, nz: 1, half: 4, d0: 3.5, reach: 14, color: [1, 0.2, 0.5], power: 1 }
 const saturation = (c: readonly number[]) => (Math.max(...c) - Math.min(...c)) / Math.max(...c, 1e-6)

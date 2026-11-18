@@ -5,7 +5,9 @@ import { NO_INPUT } from '../input'
 import { minimapModel, minimapRoads } from '../minimap'
 import { stepGto, viewOf } from '../sim'
 import type { GtoState } from '../types'
-import { cfg, DT, run, start, world } from './helpers'
+import { allowLongSimulations, cfg, DT, run, start, world } from './helpers'
+
+allowLongSimulations()
 
 /** デモのシナリオを seconds 秒ぶん再生する */
 function play(name: string, seconds: number): { state: GtoState; seen: Set<string> } {

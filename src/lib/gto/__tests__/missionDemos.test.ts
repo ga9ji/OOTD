@@ -3,7 +3,9 @@ import { DEMOS, demoInput } from '../demo'
 import { missionCueModel, missionGauge } from '../missions'
 import { stepGto, viewOf } from '../sim'
 import type { GtoState } from '../types'
-import { cfg, DT, start, world } from './helpers'
+import { allowLongSimulations, cfg, DT, start, world } from './helpers'
+
+allowLongSimulations()
 
 /** ミッションのデモを seconds 秒ぶん再生する（sim を通した、開始から決着までの確認） */
 function play(name: string, seconds: number, until?: (s: GtoState) => boolean) {

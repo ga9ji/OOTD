@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import KokiHuntTitle from './KokiHuntTitle'
 import GameFullscreenButton from './GameFullscreenButton'
 import { scrollGameToTop } from '../lib/gameFullscreen'
 import { useI18n } from '../lib/i18n'
@@ -10,7 +11,6 @@ import { PLAYER_LOOKS, RIVAL_LOOKS, loadHuntPhoto, photoUrl, type HuntLook } fro
 import { makeHuntScene } from './kokiHuntScene'
 import './kokiHunt.css'
 
-const SPRITE_URL = photoUrl(PLAYER_LOOKS[0])
 
 const MOVES: Record<string, Point> = {
   ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
@@ -248,12 +248,13 @@ function Arena({ hunt, look, photos, onExit, onComplete }: { hunt: Hunt; look: H
         </div>
       ) : (
         <>
-          <div className="koki-hunt-meters">
-            <Meter label="koki HP" value={hud.hp} max={100} kind="player" />
-            <Meter label={t('スタミナ')} value={hud.stamina} max={100} kind="stamina" />
-            <Meter label={`${t(hunt.name)} HP`} value={hud.monsterHp} max={hunt.hp} kind="monster" />
-          </div>
           <div className="koki-hunt-board">
+            <div className="koki-hunt-meters"><span className="fm-hud-portrait" aria-hidden="true"><img src={photoUrl(look)} alt="" /></span>
+              <Meter label="koki HP" value={hud.hp} max={100} kind="player" />
+              <Meter label={t('スタミナ')} value={hud.stamina} max={100} kind="stamina" />
+              <Meter label={`${t(hunt.name)} HP`} value={hud.monsterHp} max={hunt.hp} kind="monster" />
+            </div>
+            {paused && <div className="fm-pause"><button className="koki-hunt-primary" onClick={() => pause(false)}>▶ {t('再開')}</button></div>}
             <canvas className="koki-hunt-field" ref={canvas} width={880} height={495} tabIndex={0} aria-label={t('狩猟フィールド')} aria-describedby="koki-hunt-controls" />
             <div className="koki-hunt-controls" id="koki-hunt-controls">
               <p>{t('移動 WASD / 矢印キー')}</p>
@@ -297,6 +298,14 @@ function Arena({ hunt, look, photos, onExit, onComplete }: { hunt: Hunt; look: H
 
 export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
   const { t } = useI18n()
+  const [entered, setEntered] = useState(false)
+  const questHeading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    const original = document.title
+    document.title = HUNT_TITLE
+    return () => { document.title = original }
+  }, [])
+  useEffect(() => { if (entered) questHeading.current?.focus({ preventScroll: true }) }, [entered])
   const [hunt, setHunt] = useState<Hunt | null>(null)
   const [result, setResult] = useState<Battle | null>(null)
   const [records, setRecords] = useState(loadRecords)
@@ -352,42 +361,31 @@ export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
           <GameFullscreenButton />
         </div>
 
-        {!hunt && (
-          <>
-            <section className="koki-hunt-cover">
-              <div>
-                <p className="koki-hunt-kicker">2.5D · {t('ファッションバトル')}</p>
-                <h1>{t(HUNT_TITLE)}</h1>
-                <p>{t('今日の相手は、服が大好きなファッションモンスター。お気に入りの出勤服で挑もう。')}</p>
-              </div>
-              <figure>
-                <img src={SPRITE_URL} alt="" draggable={false} />
-                <figcaption>koki</figcaption>
-              </figure>
-            </section>
-            <section aria-labelledby="koki-hunt-quests" className="koki-hunt-quest-section">
-              <h2 id="koki-hunt-quests">{t('クエスト一覧')}</h2>
-              <div className="koki-hunt-quests">
-                {HUNTS.map((quest) => {
-                  const time = records[quest.id]
-                  return (
-                    <article key={quest.id} className="koki-hunt-quest" data-hunt={quest.id}>
-                      <div className="koki-hunt-quest-art"><HuntIcon hunt={quest} /></div>
-                      <div className="koki-hunt-quest-copy">
-                        <p className="koki-hunt-kicker">{t(quest.place)}</p>
-                        <h3>{t(quest.name)}</h3>
-                        <p>{t(quest.telegraph)}</p>
-                        <div className="koki-hunt-quest-actions">
-                          <button className="koki-hunt-primary" onClick={() => prepare(quest)} aria-label={t('{name}との対戦準備', { name: t(quest.name) })}>{t('対戦準備')} <span aria-hidden="true">↗</span></button>
-                          <small>{time ? t('最速 {time}', { time: formatTime(time) }) : t('未勝利')}</small>
-                        </div>
+        {!entered && <KokiHuntTitle onStart={() => setEntered(true)} />}
+        {entered && !hunt && (
+          <section aria-labelledby="koki-hunt-quests" className="koki-hunt-quest-section">
+            <button type="button" className="fm-back" onClick={() => setEntered(false)}>← TITLE</button>
+            <h2 ref={questHeading} tabIndex={-1} id="koki-hunt-quests">{t('クエスト一覧')}</h2>
+            <div className="koki-hunt-quests">
+              {HUNTS.map((quest) => {
+                const time = records[quest.id]
+                return (
+                  <article key={quest.id} className="koki-hunt-quest" data-hunt={quest.id}>
+                    <div className="koki-hunt-quest-art"><HuntIcon hunt={quest} /></div>
+                    <div className="koki-hunt-quest-copy">
+                      <p className="koki-hunt-kicker">{t(quest.place)}</p>
+                      <h3>{t(quest.name)}</h3>
+                      <p>{t(quest.telegraph)}</p>
+                      <div className="koki-hunt-quest-actions">
+                        <button className="koki-hunt-primary" onClick={() => prepare(quest)} aria-label={t('{name}との対戦準備', { name: t(quest.name) })}>{t('対戦準備')} <span aria-hidden="true">↗</span></button>
+                        <small>{time ? t('最速 {time}', { time: formatTime(time) }) : t('未勝利')}</small>
                       </div>
-                    </article>
-                  )
-                })}
-              </div>
-            </section>
-          </>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
         )}
 
         {hunt && !photos && (
@@ -416,6 +414,7 @@ export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
           <section className="koki-hunt-result" data-hunt={hunt.id}>
             <div className="koki-hunt-quest-art"><HuntIcon hunt={hunt} /></div>
             <div className="koki-hunt-result-copy">
+              <strong className="fm-verdict" aria-hidden="true">{result.result === 'won' ? 'VICTORY' : 'DEFEAT'}</strong>
               <p className="koki-hunt-kicker">{t(hunt.name)}</p>
               <h1 tabIndex={-1} ref={resultHeading}>{t(result.result === 'won' ? 'コーデ対決に勝利' : 'コーデ対決に敗北')}</h1>
               <p>{t(result.result === 'won' ? '対戦タイム {time}' : '経過時間 {time}', { time: formatTime(result.elapsed) })}</p>

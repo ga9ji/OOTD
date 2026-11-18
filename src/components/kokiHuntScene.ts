@@ -67,8 +67,11 @@ function makeWarning() {
         if(distance>=1.0 || abs(point.x)>inset.x || abs(point.y)>inset.y) discard;
         float border=smoothstep(.89,.95,distance);
         float hatch=sin((xy.x+xy.y)*9.5+clock*4.0);
+        float front=1.0-smoothstep(.025,.095,abs(distance-danger));
+        float stitch=step(.45,fract((xy.x+xy.y)*1.85));
         vec3 tint=mix(vec3(.61,.074,.02),vec3(1.0,.49,.105),border);
-        float alpha=.245+smoothstep(.65,1.0,hatch)*.11+border*.58+danger*.13;
+        tint=mix(tint,vec3(1.,.84,.64),front*.85+border*stitch*.12);
+        float alpha=.245+smoothstep(.65,1.0,hatch)*.11+border*.52+front*.29+danger*.12;
         gl_FragColor=vec4(tint,alpha);
         #include <colorspace_fragment>
       }
@@ -94,7 +97,7 @@ function updateWarning(warning: ReturnType<typeof makeWarning>, battle: Battle, 
   uniforms.extent.value.set(reach + diameter, diameter)
   uniforms.inset.value.set(battle.field.width * GROUND_SCALE * .5, battle.field.height * GROUND_SCALE * .5)
   uniforms.clock.value = battle.elapsed
-  uniforms.danger.value = strike ? 1 : 0
+  uniforms.danger.value = strike ? 1 : THREE.MathUtils.clamp(1 - battle.phaseTimer / (battle.hunt.windup * (battle.monsterHp <= battle.hunt.hp * .35 ? .8 : 1)), 0, 1)
 }
 
 function makeSparks() {

@@ -1,9 +1,9 @@
 .koki-hunt {
-  --hunt-ink: #202b27;
-  --hunt-paper: #eee8d5;
-  --hunt-gold: #e0b979;
+  --hunt-ink: #17161a;
+  --hunt-paper: #f4eedf;
+  --hunt-gold: #ffab73;
   --hunt-muted: #cec5aa;
-  background: radial-gradient(ellipse at 10% 0%, #3b493e, transparent 58%), #192824;
+  background: radial-gradient(ellipse at 75% 0%, #321c23, transparent 58%), #111115;
   color: var(--hunt-paper);
   min-height: min(740px, 100svh);
   padding: clamp(12px, 3vw, 34px) clamp(10px, 3vw, 38px) clamp(24px, 4vw, 46px);
@@ -29,74 +29,8 @@
   outline-offset: 3px;
 }
 
-.koki-hunt-cover {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(100px, .34fr);
-  align-items: center;
-  gap: 20px;
-  padding: clamp(18px, 4vw, 44px);
-  background:
-    repeating-linear-gradient(157deg, transparent 0 22px, #e7e4c715 23px 24px, transparent 25px 41px),
-    linear-gradient(117deg, #34463a, #545840);
-  border: 1px solid #7e866c;
-}
-
-.koki-hunt-cover h1,
-.koki-hunt-result h1,
-.koki-hunt-arena h1 {
-  font-family: 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, serif;
-  margin: 0;
-  line-height: 1.1;
-  letter-spacing: -.035em;
-}
-
-.koki-hunt-cover h1 {
-  font-size: clamp(38px, 7.4vw, 94px);
-}
-
 .koki-hunt .koki-hunt-kicker {
-  font: 700 12px/1.5 var(--mono, monospace);
-  color: var(--hunt-gold);
-  letter-spacing: .12em;
-  margin: 0 0 6px;
-}
-
-.koki-hunt-cover p:last-child {
-  color: #e5dcc0;
-  line-height: 1.8;
-  max-width: 42ch;
-  margin: 13px 0 0;
-}
-
-.koki-hunt-cover figure {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  align-items: end;
-  margin: 0;
-  isolation: isolate;
-}
-
-.koki-hunt-cover figure::before {
-  content: '';
-  position: absolute;
-  inset: 12% 0 14%;
-  border: 1px solid #c8bb7f55;
-  background: radial-gradient(ellipse, #ad995570, transparent 64%);
-  border-radius: 100%;
-  z-index: -1;
-}
-
-.koki-hunt-cover img {
-  height: clamp(110px, 18vw, 210px);
-  max-width: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 0 7px #efe0ac61);
-}
-
-.koki-hunt-cover figcaption {
-  font: 700 15px/1.1 Georgia, serif;
-  letter-spacing: .1em;
+  margin: 0 0 6px; color: var(--hunt-gold); font: 700 12px/1.5 var(--mono,monospace); letter-spacing: .12em;
 }
 
 .koki-hunt-quest-section {
@@ -360,9 +294,6 @@
 
 @media (max-width: 670px) {
   .koki-hunt-quests { grid-template-columns: minmax(0, 1fr); }
-  .koki-hunt-cover { gap: 8px; }
-  .koki-hunt-cover h1 { font-size: clamp(26px, 7.2vw, 44px); }
-  .koki-hunt-cover p:last-child { font-size: 13px; }
   .koki-hunt-arena-head { align-items: flex-end; }
   .koki-hunt-arena-nav { gap: 5px; }
 }
@@ -396,7 +327,7 @@
   .koki-hunt-arena {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     max-width: 1050px;
     height: 100%;
     gap: 5px;
@@ -575,3 +506,103 @@
 }
 
 .koki-hunt-fitting .koki-hunt-secondary { background: var(--hunt-paper); }
+
+/* The hunt occupies its own viewport inside the archive. */
+.app:has(> .koki-hunt) { padding: 0; max-width: none; }
+.app:has(> .koki-hunt) > :is(.header,.footer,.scroll-top) { display: none; }
+.koki-hunt:not(.koki-hunt--playing) {
+  box-sizing: border-box; min-height: 100svh;
+  padding: max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+}
+.koki-hunt-inner { max-width: 1280px; }
+.koki-hunt .koki-hunt-nav { border: 0; margin: 0 0 7px; }
+.koki-hunt .koki-hunt-nav button { color: #d0c4bc; }
+.fm-title {
+  position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center;
+  min-height: clamp(420px,79svh,840px); container-type: inline-size;
+  border: 1px solid #5e4241; background-color: #24131d;
+  background-image: url('./kokiHuntSilk.webp'); background-position: center; background-size: cover;
+}
+.fm-silk,.fm-stage { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.fm-stage { overflow: hidden; }
+.fm-stage::before {
+  content: ''; position: absolute; inset: 0; opacity: .16;
+  background-image: radial-gradient(#fff5dc 0.7px, transparent 1px); background-size: 5px 5px;
+  mask-image: linear-gradient(110deg,transparent 35%,#000 95%);
+}
+.fm-stage::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(0deg,#100d16bb,transparent 15%),linear-gradient(90deg,#100f17a1,transparent 65%);
+}
+.fm-halo {
+  position: absolute; width: 47%; aspect-ratio: 1; border: 2px solid #ffdac0a8; border-radius: 50%;
+  left: 50%; top: 50%; transform: translateY(-50%) rotate(-16deg) skewY(4deg);
+  background: radial-gradient(circle at 70% 32%,#ffe6aa77, #ff947333 42%,transparent 70%);
+  box-shadow: inset 0 0 0 8px #ffcfac13, 0 0 0 10px #eabfaf19;
+}
+.fm-cover-look {
+  position: absolute; object-fit: contain; width: auto; max-width: none; transform-origin: bottom;
+}
+.fm-cover-lead { right: 16%; bottom: 6%; height: 87%; filter: drop-shadow(3px 0 0 #f8ccb184) drop-shadow(12px 17px 10px #240d2199); }
+.fm-cover-echo { right: 7%; bottom: 14%; height: 65%; filter: sepia(.65) saturate(1.5) contrast(1.12) drop-shadow(6px 5px 0 #542032); }
+.fm-title-menu { position: relative; z-index: 1; padding: clamp(22px,6vw,84px); }
+.fm-title h1 { margin: 0 0 .29em; color: #fff3df; font: italic 950 clamp(76px,10.7cqw,148px)/.80 'Archivo Black','Arial Black',system-ui,sans-serif; letter-spacing: -.097em; text-shadow: 2px 4px 0 #180c16; }
+.fm-title h1 span,.fm-title h1 strong,.fm-title h1 em { display: block; width: fit-content; }
+.fm-title h1 strong { font-weight: 950; }
+.fm-title h1 em { margin-left: .59em; margin-top: -.015em; font: italic bold .81em/.92 Georgia,serif; color: #ffae83; letter-spacing: -.08em; }
+.koki-hunt .fm-start,.koki-hunt .koki-hunt-primary {
+  border: 0; border-radius: 0; background: #ffae80; color: #1c1215; font-weight: 850; cursor: pointer;
+  clip-path: polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);
+}
+.koki-hunt .fm-start { display: inline-flex; align-items: center; gap: 16px; min-height: 54px; padding: 0 22px; margin-top: 12px; font: 800 16px/1 system-ui,sans-serif; letter-spacing: .1em; }
+.fm-start i { width: 0; height: 0; border-block: 6px solid transparent; border-left: 9px solid currentColor; }
+.fm-start span { margin-left: 20px; font-size: 21px; }
+.koki-hunt :is(.fm-start,.koki-hunt-primary):is(:hover,:focus-visible) { background: #ffe2b6; box-shadow: inset 0 0 0 3px #c96e4c; }
+.koki-hunt :is(.fm-start,.koki-hunt-primary):active { transform: translateY(2px); }
+.koki-hunt-quest-section,.koki-hunt-fitting,.koki-hunt-result { max-width: 1080px; margin: clamp(12px,5vh,50px) auto; }
+.fm-back { min-height: 44px; padding-inline: 0 10px; color: #ffc19c; letter-spacing: .1em; }
+.koki-hunt-quest-section h2,.koki-hunt-fitting h1 { font: 850 clamp(25px,4vw,52px)/1.15 system-ui,sans-serif; margin: 8px 0 23px; letter-spacing: -.04em; }
+.koki-hunt-quest,.koki-hunt-result { background: #232127; color: #fff3e4; border: 1px solid #4d4144; border-bottom: 4px solid var(--hunt-art); }
+.koki-hunt [data-hunt='cinder'] { --hunt-art: #bb8547; --hunt-art-dark: #4a2c26; }
+.koki-hunt [data-hunt='gale'] { --hunt-art: #c34243; --hunt-art-dark: #4b1c32; }
+.koki-hunt-quest-copy h3 { font: 850 clamp(20px,3vw,34px)/1.24 system-ui,sans-serif; letter-spacing: -.04em; }
+.koki-hunt-quest .koki-hunt-kicker,.koki-hunt-result .koki-hunt-kicker { color: #ffc5a3; }
+.koki-hunt-quest-art { background: repeating-linear-gradient(128deg,transparent 0 31px,#fff2df21 32px,transparent 33px),radial-gradient(ellipse at 50% 38%,var(--hunt-art),var(--hunt-art-dark)); }
+.koki-hunt-result-copy .koki-hunt-secondary { background: #f6ecdc; }
+.fm-verdict { display: block; font: italic 950 clamp(34px,7vw,77px)/1 system-ui,sans-serif; letter-spacing: -.065em; margin-bottom: 15px; color: #ffae80; }
+.koki-hunt-look { background: #252229; color: #ede5da; border-color: #53484a; border-bottom-width: 4px; }
+.koki-hunt-look img { filter: drop-shadow(0 2px 1px #cdb8aa55); }
+.koki-hunt-look[aria-pressed='true'] { background: linear-gradient(150deg,#74524a,#372c32); border-color: #ffae80; }
+.koki-hunt-look span { background: #ffae80; color: #241917; }
+.koki-hunt-board { position: relative; isolation: isolate; }
+.koki-hunt-meters { position: absolute; inset: 0 0 auto; z-index: 1; pointer-events: none; margin: 0; padding: 8px 10px 21px;
+  display: grid; grid-template-columns: 38px minmax(0,1fr) minmax(0,1fr); grid-template-rows: auto auto; gap: 3px 7px;
+  background: linear-gradient(#131018eb,#17121bbe 55%,transparent); }
+.fm-hud-portrait { grid-row: 1/3; width: 38px; height: 44px; overflow: hidden; background: #8d675d; border-left: 3px solid #ffae80; }
+.fm-hud-portrait img { display: block; height: 120px; max-width: none; margin: 1px auto; }
+.koki-hunt-meter { gap: 1px; font: 700 clamp(9px,1.4vw,12px)/1.35 system-ui,sans-serif; }
+.koki-hunt-meter[data-kind='player'] { grid-column: 2; grid-row: 1; --meter-fill: #a3edcc; }
+.koki-hunt-meter[data-kind='stamina'] { grid-column: 2; grid-row: 2; --meter-fill: #ffd093; }
+.koki-hunt-meter[data-kind='monster'] { grid-column: 3; grid-row: 1/3; align-self: center; margin-left: 6%; --meter-fill: #ff785f; text-align: right; }
+.koki-hunt-meter progress { height: 7px; transform: skewX(-10deg); }
+.koki-hunt-meter[data-kind='monster'] progress { height: 11px; }
+.koki-hunt-arena h1 { font: 850 clamp(18px,4vw,31px)/1.15 system-ui,sans-serif; margin: 0; }
+.koki-hunt-status { background: #28232b; border-left: 3px solid #f3bf91; letter-spacing: .045em; }
+.koki-hunt-status[data-warning='true'] { background: #802e31; }
+.koki-hunt-status[data-opening='true'] { background: #e5bf84; }
+.fm-pause { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; background: #18131aaa; }
+@media (max-width: 640px) {
+  .fm-title { min-height: clamp(490px,80svh,790px); align-items: flex-end; }
+  .fm-title-menu { padding: 0 6% 8%; }
+  .fm-title h1 { font-size: clamp(63px,15.8cqw,98px); }
+  .fm-cover-lead { right: 18%; height: 65%; bottom: 32%; }
+  .fm-cover-echo { right: 4%; height: 49%; bottom: 37%; }
+  .fm-halo { width: 78%; top: 36%; left: 20%; }
+  .fm-stage::after { background: linear-gradient(0deg,#111018 0%,#111018ad 24%,transparent 57%); }
+  .koki-hunt-quest-section,.koki-hunt-fitting { margin-top: 10px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .fm-title { min-height: max(245px, calc(100svh - 75px)); align-items: center; }
+  .fm-title-menu { padding: 12px 5%; }
+  .fm-title h1 { font-size: clamp(46px,17vh,78px); }
+}

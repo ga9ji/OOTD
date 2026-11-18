@@ -7,7 +7,9 @@ import { QUALITY } from '../quality'
 import { createGtoState, stepGto } from '../sim'
 import { laneLeftOf, gapAhead } from '../traffic'
 import type { GtoState, SimConfig, VehicleState } from '../types'
-import { DT, world } from './helpers'
+import { allowLongSimulations, DT, world } from './helpers'
+
+allowLongSimulations()
 
 const keys = Array.from({ length: 12 }, (_, i) => `k${i}`)
 const high: SimConfig = { maxVehicles: QUALITY.high.maxVehicles, maxPeds: QUALITY.high.maxPeds, outfitKeys: keys }

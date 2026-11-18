@@ -7,7 +7,9 @@ import { needsPedRespawn, PED_TUNING, spawnPed, stepPed, type PedThreat } from '
 import { laneOffset, routePoint, stepTraffic, TRAFFIC_TUNING, type Hazard } from '../traffic'
 import { stepGto } from '../sim'
 import type { GtoState, PedState, VehicleState } from '../types'
-import { DT, start, world } from './helpers'
+import { allowLongSimulations, DT, start, world } from './helpers'
+
+allowLongSimulations()
 
 const net = getSignals(world)
 const scramble = net.junctions.find((j) => j.scramble)!

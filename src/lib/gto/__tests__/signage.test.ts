@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { LIGHTING } from '../lighting'
 import { ADS, buildNeonTubes, buildSignage, buildStorefrontShades, NEON_WORDS, NIGHT_CELLS, signCell, signGain, signLook, SHOPS, SIGN_CELLS, SIGNAGE_TUNING, UPPER_SHOPS, wallNormalOf } from '../signage'
 import { NEON_COLORS } from '../signageCatalog'
-import { world } from './helpers'
+import { allowLongSimulations, world } from './helpers'
+
+allowLongSimulations()
 
 const full = buildSignage(world)
 const lite = buildSignage(world, 'lite')

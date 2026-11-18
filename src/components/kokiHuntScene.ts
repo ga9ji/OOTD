@@ -21,7 +21,12 @@ function clearScene(scene: THREE.Scene) {
     if (node instanceof THREE.InstancedMesh) node.dispose()
   })
   geometries.forEach((geometry) => geometry.dispose())
-  materials.forEach((material) => material.dispose())
+  const textures = new Set<THREE.Texture>()
+  materials.forEach((material) => {
+    if (material instanceof THREE.MeshStandardMaterial && material.bumpMap) textures.add(material.bumpMap)
+    material.dispose()
+  })
+  textures.forEach((texture) => texture.dispose())
 }
 
 function makeWarning() {

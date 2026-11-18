@@ -1,0 +1,429 @@
+/* Grand Theft Outfit の画面。ゲーム本体と一緒に遅延読み込みされる（初期表示の CSS には入らない）。
+   色は 生成り・藍・橙 を基調にする（題名のロゴと同じ）。 */
+.gto {
+  --gto-ink: #12172b;
+  --gto-cloth: #f1e7d0;
+  --gto-thread: #ff6a2b;
+  --gto-mint: #2fd3a6;
+  padding: 6px 0 24px;
+}
+
+.gto-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100dvh - 150px);
+  min-height: 320px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--gto-ink);
+  color: var(--gto-cloth);
+}
+
+/* タッチ端末では、画面の高さいっぱいを使う */
+@media (pointer: coarse) {
+  .gto {
+    padding: 0;
+  }
+  .gto-stage {
+    aspect-ratio: auto;
+    height: calc(100dvh - 16px);
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
+/* 全画面と、撮影用（URL で状態を指定したとき）は画面いっぱいに敷く */
+.app.is-fullscreen:has(> main.gto) {
+  padding: 0;
+  overflow: hidden;
+}
+.app.is-fullscreen > main.gto {
+  height: 100%;
+  padding: 0;
+}
+.app.is-fullscreen .gto-stage {
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+.gto-stage.is-capture {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-height: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+
+.gto-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+.gto-canvas:active {
+  cursor: grabbing;
+}
+
+.gto-failed {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: 13px;
+}
+
+/* ---------- 操作列（もどる・音・全画面）----------
+   題名の画面では左上に小さく出す。遊んでいるあいだ（data-gto-hud="play"）は隠し、
+   M キーかミニマップを押すと（data-gto-hud="menu"）画面の中央に値札の束として出る。 */
+.gto-chrome {
+  position: absolute;
+  z-index: 5;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: max(8px, env(safe-area-inset-left, 0px));
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.gto-chrome-btn,
+.gto-chrome .game-fs-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 3px;
+  background: rgba(18, 23, 43, 0.72);
+  color: var(--gto-cloth);
+  font-size: 11.5px;
+  line-height: 28px;
+}
+.gto-chrome .game-fs-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  padding: 0;
+}
+.gto-chrome-btn:hover,
+.gto-chrome .game-fs-btn:hover {
+  background: rgba(18, 23, 43, 0.92);
+  color: #fff;
+}
+.gto-stage[data-gto-hud='play'] .gto-chrome,
+.gto-stage[data-gto-hud='play'] .gto-credit.corner {
+  display: none;
+}
+.gto-stage[data-gto-hud='menu'] .gto-chrome {
+  top: 50%;
+  left: 50%;
+  gap: 10px;
+  transform: translate(-50%, -50%);
+}
+.gto-stage[data-gto-hud='menu'] .gto-chrome-btn,
+.gto-stage[data-gto-hud='menu'] .gto-chrome .game-fs-btn {
+  flex: none;
+  height: 44px;
+  padding: 0 20px;
+  white-space: nowrap;
+  border-radius: 0;
+  background: var(--gto-cloth);
+  color: var(--gto-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 44px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  outline: 1px dashed var(--gto-thread);
+  outline-offset: -4px;
+}
+.gto-stage[data-gto-hud='menu'] .gto-chrome .game-fs-btn {
+  width: 52px;
+  padding: 0;
+}
+.gto-stage[data-gto-hud='menu'] .gto-chrome-btn:hover,
+.gto-stage[data-gto-hud='menu'] .gto-chrome .game-fs-btn:hover {
+  background: #fff;
+  color: var(--gto-ink);
+}
+/* メニューの後ろに敷く幕。押すと閉じる */
+.gto-menu-veil {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(18, 23, 43, 0.6);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.gto-stage[data-gto-hud='menu'] .gto-credit.corner {
+  top: calc(50% + 34px);
+  right: 12px;
+  bottom: auto;
+  left: 12px;
+  z-index: 5;
+  font-size: 10.5px;
+  text-align: center;
+  opacity: 0.9;
+}
+
+/* ---------- HUD とミニマップ ----------
+   配置: 常時出すのは画面の隅の3か所だけ。左下は丸いミニマップだけ（スマホは左上）、右上は状態の塊、
+   右下は走りの計器（速度・向かう先までの距離・通りの名前。スマホはミニマップの下）。
+   台詞と目的は要るときだけ下の中央に1枚で出る。画面の中央と主人公のまわりには常時表示を置かない。
+   --gto-pad は画面の端からの余白、--gto-map はミニマップの一辺（GtoMinimap が入れる）。 */
+.gto-stage {
+  --gto-pad: clamp(10px, 4vmin, 40px);
+  --gto-top: max(var(--gto-pad), env(safe-area-inset-top, 0px));
+  --gto-left: max(var(--gto-pad), env(safe-area-inset-left, 0px));
+  --gto-right: max(var(--gto-pad), env(safe-area-inset-right, 0px));
+  --gto-bottom: max(var(--gto-pad), 22px, env(safe-area-inset-bottom, 0px));
+  /* 遊んでいるあいだは上の操作列を出さないので 0（ほかの部品が余白の計算に使っている） */
+  --gto-chrome-h: 0px;
+}
+.gto-minimap {
+  position: absolute;
+  z-index: 3;
+  bottom: var(--gto-bottom);
+  left: var(--gto-left);
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+  /* 押すとメニューが開く */
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.gto-minimap.is-touch {
+  top: max(8px, env(safe-area-inset-top, 0px));
+  bottom: auto;
+  left: max(8px, env(safe-area-inset-left, 0px));
+}
+.gto-hud {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  /* 明るい壁の前でも読めるよう、文字に藍の縁を付ける */
+  -webkit-text-stroke: 3px var(--gto-ink);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* 走りの計器: 右下の隅に右揃えで1かたまり。上から 操作の案内・速度・（距離と通りの名前）。
+   ミニマップとは離して置き、左下から中央下を空ける */
+.gto-hud-place {
+  position: absolute;
+  right: var(--gto-right);
+  bottom: var(--gto-bottom);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  max-width: 40%;
+}
+.gto-place-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+/* スマホ: 右下は操作ボタンなので、ミニマップの下に左揃えで置く */
+.gto-hud.is-touch .gto-hud-place {
+  top: calc(max(8px, env(safe-area-inset-top, 0px)) + var(--gto-map, 120px) + 2px);
+  right: auto;
+  bottom: auto;
+  left: max(8px, env(safe-area-inset-left, 0px));
+  gap: 3px;
+  align-items: flex-start;
+}
+.gto-hud.is-touch .gto-place-row {
+  flex-direction: row-reverse;
+  gap: 8px;
+}
+.gto-street {
+  padding: 4px 12px 4px 16px;
+  background: var(--gto-cloth);
+  color: var(--gto-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  /* 値札: 左上を斜めに落とす */
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+  animation: gto-tab-in 0.35s ease-out;
+}
+.gto-hud.is-touch .gto-street {
+  padding: 3px 14px 3px 8px;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
+}
+@keyframes gto-tab-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+/* 向かう先への矢印と距離 */
+.gto-target {
+  display: inline-flex;
+  flex: none;
+  gap: 5px;
+  align-items: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--gto-mint);
+}
+.gto-target.is-start {
+  color: var(--gto-thread);
+}
+.gto-target svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  stroke: var(--gto-ink);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+  transition: transform 0.12s linear;
+}
+
+/* 右上の状態の塊・ミッションの束・スマホでの寄せ方は gtoHud.css（GtoHud.tsx が読む） */
+
+/* ---------- タッチ操作 ---------- */
+.gto-touch {
+  position: absolute;
+  z-index: 4;
+  inset: auto 0 0 0;
+  pointer-events: none;
+}
+.gto-stick {
+  position: absolute;
+  bottom: max(26px, env(safe-area-inset-bottom, 0px));
+  left: max(22px, env(safe-area-inset-left, 0px));
+  display: grid;
+  place-items: center;
+  width: 128px;
+  height: 128px;
+  border: 2px solid rgba(241, 231, 208, 0.35);
+  border-radius: 50%;
+  background: rgba(18, 23, 43, 0.28);
+  pointer-events: auto;
+  touch-action: none;
+}
+.gto-stick i {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(241, 231, 208, 0.82);
+}
+.gto-buttons {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right, 0px));
+  bottom: max(26px, env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 10px;
+  align-items: end;
+  justify-items: end;
+  pointer-events: none;
+}
+.gto-btn {
+  width: 66px;
+  height: 66px;
+  border: 2px solid rgba(241, 231, 208, 0.5);
+  border-radius: 50%;
+  background: rgba(18, 23, 43, 0.5);
+  color: var(--gto-cloth);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: auto;
+  touch-action: none;
+}
+.gto-btn.small {
+  width: 54px;
+  height: 54px;
+}
+.gto-btn.accent {
+  grid-column: 2;
+  border-color: var(--gto-thread);
+  background: rgba(255, 106, 43, 0.78);
+  color: #fff;
+}
+.gto-btn:active {
+  transform: scale(0.94);
+  background: rgba(241, 231, 208, 0.4);
+}
+
+/* ---------- 題名 ---------- */
+.gto-title {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(18, 23, 43, 0.3), rgba(18, 23, 43, 0.72));
+  text-align: center;
+  overflow: auto;
+}
+.gto-logo {
+  width: min(64%, 400px, 52vh);
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.5));
+  transform: rotate(-3deg);
+}
+.gto-title-lead {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+.gto-start {
+  padding: 10px 34px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--gto-thread);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px var(--gto-ink), 0 0 0 3.5px var(--gto-thread);
+}
+.gto-start:hover {
+  background: #ff814a;
+}
+.gto-help {
+  display: grid;
+  gap: 3px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  opacity: 0.9;
+}
+.gto-credit {
+  margin: 4px 0 0;
+  font-size: 10px;
+  opacity: 0.8;
+}
+.gto-credit.corner {
+  position: absolute;
+  z-index: 3;
+  right: 8px;
+  bottom: 4px;
+  margin: 0;
+  font-size: 9px;
+  opacity: 0.65;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+/* ---------- 狭い画面 ---------- */
+@media (max-width: 640px) {
+  .gto-credit.corner {
+    right: auto;
+    left: 8px;
+  }
+}

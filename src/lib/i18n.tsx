@@ -1129,6 +1129,181 @@ export const EN: Record<string, string> = {
   'A D 移動 · W / SPACE ジャンプ · S しゃがみ · J 攻撃 · K 必殺 · L ガード': 'A D move · W / SPACE jump · S crouch · J attack · K special · L guard',
   '← → 移動 · ↑ ジャンプ · ↓ しゃがみ · , 攻撃 · . 必殺 · / ガード': '← → move · ↑ jump · ↓ crouch · , attack · . special · / guard',
   '直前ガードでジャストガード · ガード＋左右で回避 · 空中↓＋攻撃でメテオ · 崖はつかめる': 'Guard at the last moment for a just guard · guard + left/right to dodge · air ↓ + attack for a meteor · ledges can be grabbed',
+
+  // Grand Theft Outfit
+  'いまの渋谷駅前を3Dで歩き、車を奪って坂を走り、通行人の出勤服をいただいて着替えるクライムアクション。暴れると手配されて追われる。': 'Walk present-day Shibuya in 3D, take a car up the slopes, and swap outfits with passers-by in this open-world crime caper. Cause trouble and the police come after you.',
+  '渋谷を歩き、車を借り、服をいただく。': 'Walk Shibuya. Borrow a car. Take the outfit.',
+  '左のスティックで移動・運転、画面のドラッグで見回す': 'Left stick to move and drive, drag the screen to look around',
+  '右のボタンで 乗る／降りる・服をいただく・走る': 'Right buttons: get in / out, take outfit, run',
+  'WASD / 矢印キーで移動・運転、ドラッグで見回す': 'WASD / arrow keys to move and drive, drag to look around',
+  'F 乗る／降りる　E 服をいただく　Shift 走る　Space サイドブレーキ': 'F get in / out   E take outfit   Shift run   Space handbrake',
+  '手配度 {level}': 'Wanted level {level}',
+  '捕まる…': 'Getting caught…',
+  // [gto mobile] タッチのボタンの名前と、場面ごとの操作の案内
+  'アクセル': 'Gas',
+  'ブレーキ': 'Brake',
+  'サイドブレーキ': 'Handbrake',
+  '移動': 'Move',
+  'ハンドル': 'Steer',
+  '画面の左側を触って動かす。大きく倒すと走る': 'Touch the left side to move. Push far to run',
+  '画面の右側をなぞって見回す': 'Drag the right side to look around',
+  'を押しているあいだ走る': 'Hold to run',
+  'で手持ちの服に着替える': 'Change into an outfit you own',
+  'でそばの車に乗る': 'Get in the nearby car',
+  'で目の前の人の服をいただく': 'Take the outfit of the person in front',
+  'で車に乗る': 'Get in the car',
+  'で服をいただく': 'Take the outfit',
+  'で進む': 'Go',
+  'で後退': 'Reverse',
+  'で降りる': 'Get out',
+  '矢印のあいだを滑らせると細かく曲がる': 'Slide between the arrows for fine steering',
+  'を押しながら曲がると後ろが滑る': 'Hold while turning to slide the rear',
+  'で減速。止まると後退になる': 'Slow down. Reverses once stopped',
+  'で警笛を鳴らす': 'Sound the horn',
+  '乗る': 'Get in',
+  '降りる': 'Get out',
+  '服をいただく': 'Take outfit',
+  '警笛': 'Horn',
+  'サイド': 'Brake',
+  '奪う': 'Take',
+  // [gto outfit] ワードローブと、奪った瞬間のお知らせ
+  'ワードローブ': 'Wardrobe',
+  'ワードローブを開く': 'Open wardrobe',
+  'これを着る': 'Wear this',
+  '着用中': 'Wearing',
+  'いただき！': 'Got it!',
+  '手持ち {count}': '{count} owned',
+  '走る': 'Run',
+  'この端末では3Dを表示できませんでした。': '3D could not be displayed on this device.',
+  // [gto missions 第2ラウンド] 条件つきの目的（やってはいけないこと）
+  'センター街の入口まで歩く。見回りの赤い輪に入るな': 'Walk to the Center-gai entrance. Stay OUT of the patrols\' red rings',
+  '「似合うじゃない。そのままセンター街の入口まで歩いて。商店会の見回りには近づかないこと。借り物だとばれるよ」':
+    '"Suits you. Now walk to the Center-gai entrance. Keep clear of the shop-association patrols, or they\'ll know it\'s borrowed."',
+  '道玄坂を上りきる。開店に遅れるな': 'Drive to the top of Dogenzaka. Do NOT miss opening time',
+  '宮益坂の上の工場へ届ける。車をぶつけるな': 'Deliver to the plant at the top of Miyamasuzaka. Do NOT crash the car',
+  'のんべい横丁で衣装を渡す。警察を連れてくるな': 'Hand over the outfits in Nonbei Yokocho. Do NOT bring the police',
+  '「撒いたか。のんべい横丁の奥で受け取る。手配を付け直したら、この話は無しだ」':
+    '"Lost them? I\'ll take delivery at the back of Nonbei Yokocho. Get wanted again and the deal is off."',
+  '転売屋を尾ける。近づきすぎるな、見失うな': 'Tail the reseller. Do NOT get too close, do NOT lose sight',
+  '達成': 'Complete',
+  '失敗': 'Failed',
+  '見回りの疑い': 'Patrol suspicion',
+  '見られている。赤い輪から出ろ': 'You are being watched. Get out of the red ring',
+  '見回りに見抜かれた': 'A patrol saw through the borrowed outfit',
+  '警察の目': 'Police attention',
+  '手配を消せ。話が流れる': 'Lose the heat, or the deal is off',
+  '警察を連れてきてしまった': 'You brought the police to the handover',
+  'はじめての一着': 'The First Fit',
+  '坂の上まで、冷めないうちに': 'Up the Slope Before It Cools',
+  '宮益坂クリーニング': 'Miyamasuzaka Cleaners',
+  '通行人の服を1着いただく': 'Take one outfit from a passer-by',
+  'センター街の入口まで歩く': 'Walk to the Center-gai entrance',
+  '車を1台調達する': 'Get yourself a car',
+  '道玄坂を上りきる': 'Drive to the top of Dogenzaka',
+  '服を2着そろえる': 'Collect two outfits',
+  '車に乗る': 'Get in a car',
+  '宮益坂の上の工場へ届ける': 'Deliver to the plant at the top of Miyamasuzaka',
+  '手配が消えるまで身を隠す': 'Lie low until the heat is gone',
+  // GTO のミッション（lib/gto/missionData.ts と missions.ts の文言）
+  '仕立て屋のツムギ': 'Tsumugi the tailor',
+  '「うちの新作を着て歩いてくれる人を探しててね。まずは一着、街で見つくろっておいで」':
+    '"I need someone to walk around in my new line. First, go pick yourself an outfit off the street."',
+  '服を1着': 'one outfit',
+  'センター街の入口': 'the Center-gai entrance',
+  '「似合うじゃない。そのままセンター街の入口まで歩いて、みんなに見せてきて」':
+    '"Suits you. Now walk to the Center-gai entrance and let everyone see it."',
+  '古着バイヤーのレン': 'Ren the vintage buyer',
+  '「道玄坂の上の店に、開店前に見本を届けたい。足は現地調達で頼む」':
+    '"I need samples at a shop up Dogenzaka before it opens. Find your own wheels."',
+  '車': 'a car',
+  '道玄坂': 'Dogenzaka',
+  '「開店まで時間がない。道玄坂をまっすぐ上がってくれ」': '"No time before opening. Straight up Dogenzaka."',
+  'セルリアンタワー通りの店へ回る': 'Swing round to the shop on Cerulean Tower-dori',
+  'セルリアンタワー通りの店': 'the shop on Cerulean Tower-dori',
+  '「悪い、店を間違えた。セルリアンタワー通りのほうだ。まだ間に合う」':
+    '"Sorry, wrong shop. It\'s the one on Cerulean Tower-dori. You can still make it."',
+  'クリーニング屋のサワ': 'Sawa the dry cleaner',
+  '「預かり物が2着足りないの。似たのを見つけて、宮益坂の上の工場まで運んで」':
+    '"I\'m two garments short. Find lookalikes and take them to the plant at the top of Miyamasuzaka."',
+  '服を2着': 'two outfits',
+  '「そろったわね。車で運んで。ぶつけるたびに、しわが増えるから」':
+    '"That\'s both. Take a car. Every bump adds a wrinkle."',
+  '宮益坂の上の工場へ、そっと届ける': 'Deliver gently to the plant at the top of Miyamasuzaka',
+  '宮益坂の上の工場': 'the plant at the top of Miyamasuzaka',
+  '「工場は宮益坂を上りきった所。そっとよ、そっと」': '"The plant is at the very top of Miyamasuzaka. Gently, now."',
+  'センター街、総取り': 'Center-gai Clean Sweep',
+  'スタイリストのミナト': 'Minato the stylist',
+  '「明日の撮影の衣装が届かないんだ。センター街で3着、いますぐ借りてきて。返す予定はない」':
+    '"Tomorrow\'s shoot has no wardrobe. Borrow three outfits on Center-gai, right now. We\'re not giving them back."',
+  '服を3着いただく': 'Take three outfits',
+  '服を3着': 'three outfits',
+  '手配が消えるまで逃げきる': 'Outrun the heat until it is gone',
+  '手配': 'the heat',
+  '「通報されたぞ。撒くまで、こっちには来るな」': '"Someone called it in. Don\'t come near me until you\'ve lost them."',
+  'のんべい横丁で衣装を渡す': 'Hand over the outfits in Nonbei Yokocho',
+  'のんべい横丁': 'Nonbei Yokocho',
+  '「撒いたか。のんべい横丁の奥で受け取る」': '"Lost them? I\'ll take delivery at the back of Nonbei Yokocho."',
+  '転売屋は坂を上る': 'The Reseller Takes the Slope',
+  '古着屋の店番カナメ': 'Kaname the shop clerk',
+  '「限定の作業着を買い占めてる転売屋がいる。倉庫を突き止めたいんだ。気づかれないように尾けて」':
+    '"A reseller keeps buying up our limited workwear. I want to find the stash. Tail them without being noticed."',
+  '転売屋を尾ける。近づきすぎない': 'Tail the reseller. Do not get too close',
+  '転売屋': 'the reseller',
+  'スペイン坂の倉庫の前に立つ': 'Stand in front of the stash on Spain-zaka',
+  'スペイン坂の倉庫': 'the stash on Spain-zaka',
+  '「そこが倉庫か。入口の前まで行って、場所を押さえて」': '"So that\'s the stash. Go right up to the door and mark the spot."',
+  '朝礼まで、あと少し': 'Minutes to Morning Assembly',
+  '新入社員のハル': 'Haru the new hire',
+  '「初出勤なのに、出勤服を街じゅうに置いてきちゃって…。朝礼までに拾ってきてください！」':
+    '"It\'s my first day and I left my work outfit all over town… Please get it back before assembly!"',
+  '金王橋でネクタイを拾う': 'Pick up the tie at Konno-bashi',
+  'ネクタイ': 'the tie',
+  'SAKURAストリートで革靴を拾う': 'Pick up the leather shoes on SAKURA Street',
+  '革靴': 'the leather shoes',
+  '「次は革靴です。SAKURAストリートの植え込みの所に」': '"Shoes next. By the planters on SAKURA Street."',
+  '渋谷さくら坂でジャケットを拾う': 'Pick up the jacket on Shibuya Sakura-zaka',
+  'ジャケット': 'the jacket',
+  '「ジャケットは渋谷さくら坂のベンチです。たぶん」': '"The jacket is on a bench on Shibuya Sakura-zaka. Probably."',
+  '玉川通りの会社の前へ届ける': 'Deliver to the office on Tamagawa-dori',
+  '玉川通りの会社': 'the office on Tamagawa-dori',
+  '「全部そろった！会社は玉川通り沿いです、急いで！」': '"That\'s everything! The office is on Tamagawa-dori, hurry!"',
+  'いただいた服': 'Outfits taken',
+  '相手の警戒': 'Suspicion',
+  '服のしわ': 'Wrinkles',
+  '服がしわだらけになった': 'The outfits got hopelessly wrinkled',
+  '気づかれた': 'You were noticed',
+  '見失った': 'You lost them',
+  '捕まった': 'You got caught',
+  '時間切れ': 'Out of time',
+  '離れすぎ。見失う': 'Too far. Losing them',
+  '近すぎる。気づかれる': 'Too close. They will notice',
+  'あと1回ぶつけると台無し': 'One more bump ruins it',
+  // [missions] 第3ラウンドで足した文言（行為が変わる段と、次の依頼の知らせ）
+  '新しい依頼': 'New job',
+  '車を1台つかまえる': 'Grab yourself a car',
+  '「似合うじゃない。…あら、通報されたみたい。車をつかまえて、ここを離れて」': '"Suits you. …Oh. Someone called it in. Grab a car and get out of here."',
+  'ガードをくぐって宮益坂下まで走る': 'Drive under the rail bridge to the foot of Miyamasuzaka',
+  '宮益坂下': 'the foot of Miyamasuzaka',
+  '「そのまま宮益坂下まで乗っていって。その服、クリーニング屋のサワに見せたいの」': '"Take it straight to the foot of Miyamasuzaka. I want Sawa the dry cleaner to see that outfit."',
+  '仕立て屋のツムギが、ハチ公前で着てくれる人を探している': 'Tsumugi the tailor is looking for a model by the Hachiko exit',
+  '古着バイヤーのレンが、道玄坂下で運び手を探している': 'Ren the vintage buyer needs a driver at the foot of Dogenzaka',
+  'クリーニング屋のサワが、宮益坂下で人手を探している': 'Sawa the dry cleaner needs a hand at the foot of Miyamasuzaka',
+  'スタイリストのミナトが、センター街の奥で困っている': 'Minato the stylist is in trouble at the far end of Center-gai',
+  '古着屋の店番カナメが、公園通りの下で相談があるらしい': 'Kaname the shop clerk wants a word at the bottom of Koen-dori',
+  '新入社員のハルが、渋谷駅の南で泣きそうになっている': 'Haru the new hire is close to tears south of Shibuya Station',
+  '車を降りて、店主に見本を手渡す': 'Get out and hand the samples to the shopkeeper',
+  '店主': 'the shopkeeper',
+  '「着いたな。車を降りて、店先の店主に直接渡してくれ」': '"You made it. Get out and hand them to the shopkeeper out front."',
+  'スペイン坂の倉庫の前に立つ。倉庫番の赤い輪に入るな': 'Stand at the stash on Spain-zaka. Stay OUT of the watchman\'s red ring',
+  '「そこが倉庫か。入口の前まで行って、場所を押さえて。倉庫番には見つからないで」': '"So that\'s the stash. Go right up to the door and mark the spot. Don\'t let the watchman see you."',
+  '限定の作業着を1着取り返す': 'Take back one limited work jacket',
+  '作業着を1着': 'one limited work jacket',
+  '「押さえた。ついでに一着、取り返しておいて。近くを歩いてる客のでいい」': '"Got it. While you\'re there, take one back. Any customer walking nearby will do."',
+  '「通報された！撒いたら終わりだ、走って」': '"They called it in! Shake them and we\'re done. Run."',
+  '車をつかまえる。走っても間に合わない': 'Grab a car. You will not make it on foot',
+  '「全部そろった！でも走ったら間に合いません。車を、車をつかまえてください！」': '"That\'s everything! But we won\'t make it on foot. A car, please grab a car!"',
+  '玉川通りの会社の前へ乗りつける': 'Pull up in front of the office on Tamagawa-dori',
+  '「会社は玉川通り沿いです。正面に乗りつけちゃってください！」': '"The office is on Tamagawa-dori. Just pull up right out front!"',
 }
 
 const interpolate = (message: string, variables: Variables = {}) =>
@@ -1163,24 +1338,22 @@ export const translate = (locale: Locale, message: string, variables?: Variables
 export const isLocale = (value: string): value is Locale =>
   LOCALES.some((locale) => locale === value)
 
-export const detectLocale = (stored: string | null, languages: readonly string[]): Locale => {
-  if (stored && isLocale(stored)) return stored
-  for (const language of languages) {
-    const normalized = language.toLowerCase()
-    const locale = LOCALES.find(
-      (candidate) => normalized === candidate || normalized.startsWith(`${candidate}-`),
-    )
-    if (locale) return locale
-  }
-  return 'en'
-}
+/** 最初に出す言語。既定は日本語で、ブラウザの言語設定は見ない。 */
+export const DEFAULT_LOCALE: Locale = 'ja'
+
+/**
+ * 表示言語を決める。ユーザーが言語切り替えで選んで保存したものがあればそれを使い、
+ * 無ければ日本語にする。
+ */
+export const detectLocale = (stored: string | null): Locale =>
+  stored && isLocale(stored) ? stored : DEFAULT_LOCALE
 
 const initialLocale = (): Locale => {
-  if (typeof window === 'undefined') return 'ja'
+  if (typeof window === 'undefined') return DEFAULT_LOCALE
   try {
-    return detectLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY), navigator.languages)
+    return detectLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY))
   } catch {
-    return detectLocale(null, navigator.languages)
+    return DEFAULT_LOCALE
   }
 }
 

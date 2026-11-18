@@ -1,0 +1,344 @@
+/* Grand Theft Outfit [部品: mobile] タッチ操作の見た目。
+   位置と大きさは lib/gto/input.ts の touchLayout が決め、ここは --x --y --d で受け取るだけ。
+   色は gto.css の変数（--gto-ink / --gto-cloth / --gto-thread）を使う。 */
+.gtt {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- スティック: 左下の領域のどこを押しても、そこが中心になる ---------- */
+.gtt-zone {
+  position: absolute;
+  bottom: env(safe-area-inset-bottom, 0px);
+  left: env(safe-area-inset-left, 0px);
+  pointer-events: auto;
+  touch-action: none;
+}
+.gtt-stick {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: var(--d);
+  height: var(--d);
+  margin: calc(var(--d) / -2) 0 0 calc(var(--d) / -2);
+  border: 2px solid rgba(241, 231, 208, 0.4);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(18, 23, 43, 0.16) 0 46%, rgba(18, 23, 43, 0.42) 100%);
+  opacity: 0.62;
+  transition: opacity 0.18s;
+  will-change: transform;
+}
+.gtt-stick.is-held {
+  border-color: rgba(241, 231, 208, 0.7);
+  opacity: 1;
+}
+.gtt-knob {
+  width: 44%;
+  height: 44%;
+  border-radius: 50%;
+  background: rgba(241, 231, 208, 0.88);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  will-change: transform;
+}
+/* ---------- 運転中の左下: 左右の矢印。2つの間を滑らせると細かく切れる ---------- */
+.gtt-arrows {
+  position: absolute;
+  bottom: var(--y);
+  left: var(--x);
+  width: 0;
+  height: 0;
+}
+.gtt-arrow {
+  position: absolute;
+  top: calc(var(--d) / -2);
+  left: calc(var(--d) / -2);
+  display: grid;
+  place-items: center;
+  width: var(--d);
+  height: var(--d);
+  border: 1.5px solid rgba(241, 231, 208, 0.28);
+  border-radius: 50%;
+  background: rgba(18, 23, 43, 0.5);
+  color: rgba(241, 231, 208, 0.92);
+  transition:
+    background-color 0.08s,
+    transform 0.06s;
+}
+.gtt-arrow.is-l {
+  transform: translateX(calc(var(--half) * -1));
+}
+.gtt-arrow.is-r {
+  transform: translateX(var(--half));
+}
+.gtt-arrow svg {
+  width: 60%;
+  height: 60%;
+  fill: currentColor;
+}
+.gtt-arrow.is-r svg {
+  transform: scaleX(-1);
+}
+/* 切っている側が明るくなる（切った量で濃くなる） */
+.gtt-arrows[data-steer='l'] .is-l,
+.gtt-arrows[data-steer='r'] .is-r {
+  border-color: #fff;
+  background: rgba(241, 231, 208, calc(0.35 + var(--amt, 1) * 0.55));
+  color: var(--gto-ink, #12172b);
+}
+.gtt-arrows[data-steer='l'] .is-l {
+  transform: translateX(calc(var(--half) * -1)) scale(0.94);
+}
+.gtt-arrows[data-steer='r'] .is-r {
+  transform: translateX(var(--half)) scale(0.94);
+}
+
+/* ---------- ボタン: 右下。絵だけ。役割で大きさと色が違い、その場面で使える物だけが出る ---------- */
+.gtt-btn {
+  position: absolute;
+  right: calc(var(--x) + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--y) + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  place-items: center;
+  width: var(--d);
+  height: var(--d);
+  margin: 0 calc(var(--d) / -2) calc(var(--d) / -2) 0;
+  padding: 0;
+  border: 1.5px solid rgba(241, 231, 208, 0.28);
+  border-radius: 50%;
+  background: rgba(18, 23, 43, 0.5);
+  color: rgba(241, 231, 208, 0.94);
+  line-height: 1;
+  pointer-events: auto;
+  touch-action: none;
+  transition: transform 0.06s;
+  animation: gtt-pop 0.16s ease-out;
+}
+@keyframes gtt-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+/* 見た目より 8px 広く受ける（隣とは 20px 以上離してある） */
+.gtt-btn::before {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  content: '';
+}
+.gtt-btn svg {
+  width: 64%;
+  height: 64%;
+  fill: currentColor;
+}
+.gtt-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.gtt-line.is-thick {
+  stroke-width: 5;
+}
+/* 主役（アクセル・走る）: 明るい塗りに濃い絵 */
+.gtt-btn.is-main {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(241, 231, 208, 0.86);
+  color: var(--gto-ink, #12172b);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28);
+}
+.gtt-btn.is-main svg,
+.gtt-btn.is-pedal svg {
+  width: 70%;
+  height: 70%;
+}
+/* ブレーキ: 暗い塗りに明るい絵。アクセルと取り違えない */
+.gtt-btn.is-pedal {
+  border: 2px solid rgba(241, 231, 208, 0.7);
+  background: rgba(18, 23, 43, 0.66);
+}
+.gtt-btn.is-side svg {
+  width: 62%;
+  height: 62%;
+}
+/* 着替え: いつもある道具。暗い塗りに明るい縁、右肩に手持ちの数 */
+.gtt-btn.is-tool {
+  border: 2px solid rgba(241, 231, 208, 0.7);
+  background: rgba(18, 23, 43, 0.66);
+}
+.gtt-btn.is-tool svg {
+  width: 64%;
+  height: 64%;
+}
+.gtt-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  padding: 0 5px;
+  border-radius: 11px;
+  background: var(--gto-cloth, #f1e7d0);
+  color: var(--gto-ink, #12172b);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+/* 右上の文字の「着替え」は、タッチでは右下の絵のボタンに置き換える（同じ物を2つ出さない） */
+.gto-stage .gtw.is-touch .gtw-open {
+  display: none;
+}
+/* その場面だけの操作（乗る・奪う）: 糸の色で出てくる */
+.gtt-btn.is-accent {
+  border-color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 106, 43, 0.92);
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(255, 106, 43, 0.45);
+}
+.gtt-btn.is-exit {
+  border: 2px solid rgba(255, 106, 43, 0.95);
+  background: rgba(18, 23, 43, 0.62);
+  color: #ffb899;
+}
+.gtt-btn.is-exit svg {
+  width: 66%;
+  height: 66%;
+}
+.gtt-btn.is-held,
+.gtt-btn:active {
+  transform: scale(0.92);
+  border-color: #fff;
+  background: #fff;
+  color: var(--gto-ink, #12172b);
+}
+.gtt-btn.is-accent.is-held,
+.gtt-btn.is-accent:active {
+  background: #ffd9c8;
+  color: #b23c0e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gtt-stick,
+  .gtt-arrow,
+  .gtt-btn {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---------- 名前: どの絵の下にも短い名前を出す（初見でも何のボタンか分かる） ---------- */
+.gtt-cap {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+  -webkit-text-stroke: 3px var(--gto-ink, #12172b);
+  paint-order: stroke fill;
+}
+/* 押して白くなっても名前の色は変えない */
+.gtt-btn.is-held .gtt-cap,
+.gtt-btn:active .gtt-cap {
+  color: #fff;
+}
+.gtt-stick.is-held .gtt-cap {
+  opacity: 0;
+}
+.gtt-arrows .gtt-cap {
+  top: calc(var(--d) / 2 + 2px);
+}
+
+/* ---------- 案内の帯: ミニマップの横に、いま使える操作の意味を1行で ---------- */
+.gtt-hint {
+  position: absolute;
+  top: var(--hint-top, max(8px, env(safe-area-inset-top, 0px)));
+  left: calc(max(8px, env(safe-area-inset-left, 0px)) + var(--gto-map, 120px) + 12px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  align-items: center;
+  max-width: calc(100% - var(--gto-map, 120px) - 272px);
+  margin: 0;
+  padding: 5px 10px 5px 8px;
+  border-left: 3px solid var(--gto-thread, #ff6a2b);
+  background: rgba(18, 23, 43, 0.78);
+  color: var(--gto-cloth, #f1e7d0);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  pointer-events: none;
+  animation: gtt-hint-in 0.28s ease-out;
+}
+@keyframes gtt-hint-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+.gtt-hint-part {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+/* ボタンと同じ絵を、同じ役割の色の小さな丸で添える */
+.gtt-hint-ico {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(241, 231, 208, 0.6);
+  border-radius: 50%;
+  background: rgba(18, 23, 43, 0.6);
+  color: rgba(241, 231, 208, 0.96);
+}
+.gtt-hint-ico svg {
+  width: 68%;
+  height: 68%;
+  fill: currentColor;
+}
+.gtt-hint-ico.is-main {
+  border-color: #fff;
+  background: rgba(241, 231, 208, 0.92);
+  color: var(--gto-ink, #12172b);
+}
+.gtt-hint-ico.is-accent {
+  border-color: #fff;
+  background: rgba(255, 106, 43, 0.95);
+  color: #fff;
+}
+.gtt-hint-ico.is-exit {
+  border-color: rgba(255, 106, 43, 0.95);
+  color: #ffb899;
+}
+/* 縦持ち: ミニマップの横は状態の表示なので、その下の段（ミニマップの右）に置く。2行まで */
+@media (orientation: portrait) {
+  .gtt-hint {
+    top: var(--hint-top, calc(max(8px, env(safe-area-inset-top, 0px)) + 82px));
+    right: max(8px, env(safe-area-inset-right, 0px));
+    max-width: none;
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gtt-hint {
+    animation: none;
+  }
+}

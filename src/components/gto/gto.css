@@ -377,9 +377,11 @@
 }
 
 /* ---------- 題名 ---------- */
+/* 左上の操作列（.gto-chrome、z-index 5）より下に敷く。上に敷くと、題名の画面で
+   もどる・音・全画面・共有がこの幕に隠れて押せなくなる */
 .gto-title {
   position: absolute;
-  z-index: 6;
+  z-index: 4;
   inset: 0;
   display: grid;
   align-content: center;

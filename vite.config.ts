@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { defineConfig, type Plugin, type ViteDevServer } from 'vite'
@@ -83,6 +84,11 @@ export default defineConfig(({ command, isPreview }) => ({
         },
       },
     },
+  },
+  test: {
+    // bot で長時間回すテスト（俺スロの出玉率・GTO の交通や光の場など）は、手元では1〜2秒でも
+    // CI のランナーでは並列で重くなり、既定の 5 秒を日によって超えて落ちる。既定を広げておく
+    testTimeout: 30_000,
   },
   server: {
     // ツール（プレビュー等）が指定したポートを尊重する（既定は vite 標準の 5173）

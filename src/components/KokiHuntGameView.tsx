@@ -3,13 +3,15 @@ import GameFullscreenButton from './GameFullscreenButton'
 import { scrollGameToTop } from '../lib/gameFullscreen'
 import { useI18n } from '../lib/i18n'
 import {
-  act, createBattle, FIELD, HUNTS, HUNT_TITLE, loadRecords, saveRecord, tickBattle,
+  act, createBattle, FIELD, HUNTS, HUNT_TITLE, joystickVector, loadRecords, PORTRAIT_FIELD,
+  resizeBattlefield, saveRecord, tickBattle,
   type Action, type Battle, type Hunt, type Point, type Signal,
 } from '../lib/kokiHunt'
 import { drawBattle, drawHuntIcon, KOKI_SPRITE, makeTerrain } from './kokiHuntArt'
 import './kokiHunt.css'
 
 const SPRITE_URL = `${import.meta.env.BASE_URL}cutouts/${KOKI_SPRITE}.webp`
+const PORTRAIT_QUERY = '(max-width: 700px) and (orientation: portrait)'
 
 const MOVES: Record<string, Point> = {
   ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
@@ -25,12 +27,7 @@ const ACTIONS = [
   { action: 'heavy', label: '強撃', key: 'K' },
   { action: 'dodge', label: '回避', key: 'Space' },
 ] as const
-const TOUCH_MOVES = [
-  { key: 'ArrowUp', icon: '↑', label: '上へ移動' },
-  { key: 'ArrowLeft', icon: '←', label: '左へ移動' },
-  { key: 'ArrowDown', icon: '↓', label: '下へ移動' },
-  { key: 'ArrowRight', icon: '→', label: '右へ移動' },
-] as const
+type Stick = { pointer: number; center: Point; travel: number; vector: Point }
 const SIGNALS: Record<Signal, string> = {
   slash: '斬撃が命中', heavy: '強撃が命中', miss: '間合いの外', dodge: '回避した', hurt: '攻撃を受けた', tired: 'スタミナ不足',
 }
@@ -60,17 +57,21 @@ function Meter({ label, value, max, kind }: { label: string; value: number; max:
 
 function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; onComplete: (battle: Battle) => void }) {
   const { t } = useI18n()
-  const [hud, setHud] = useState(() => createBattle(hunt))
+  const [initialField] = useState(() => window.matchMedia(PORTRAIT_QUERY).matches ? PORTRAIT_FIELD : FIELD)
+  const [hud, setHud] = useState(() => createBattle(hunt, initialField))
   const [paused, setPaused] = useState(false)
   const isPaused = useRef(false)
   const battle = useRef(hud)
   const canvas = useRef<HTMLCanvasElement>(null)
-  const keys = useRef(new Map<string | number, string>())
+  const keys = useRef(new Map<string, string>())
+  const stick = useRef<Stick | null>(null)
+  const stickZone = useRef<HTMLDivElement>(null)
   const completion = useRef(onComplete)
 
   useEffect(() => { completion.current = onComplete }, [onComplete])
 
   function movement(): Point {
+    if (stick.current) return stick.current.vector
     const next = { x: 0, y: 0 }
     for (const key of new Set(keys.current.values())) {
       next.x += MOVES[key].x
@@ -84,29 +85,64 @@ function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; o
     battle.current = act(battle.current, action, movement())
   }
 
-  function togglePause() {
-    isPaused.current = !isPaused.current
+  function clearMovement() {
     keys.current.clear()
-    setPaused(isPaused.current)
-    if (!isPaused.current) canvas.current?.focus({ preventScroll: true })
+    const pointer = stick.current?.pointer
+    stick.current = null
+    const zone = stickZone.current
+    if (!zone) return
+    zone.style.removeProperty('--stick-x')
+    zone.style.removeProperty('--stick-y')
+    delete zone.dataset.active
+    if (pointer !== undefined && zone.hasPointerCapture(pointer)) zone.releasePointerCapture(pointer)
   }
 
-  function pressDirection(e: PointerEvent<HTMLButtonElement>, key: string) {
-    if (isPaused.current) return
+  function pause(next: boolean) {
+    isPaused.current = next
+    clearMovement()
+    setPaused(next)
+    if (!next) canvas.current?.focus({ preventScroll: true })
+  }
+
+  function moveStick(e: PointerEvent<HTMLDivElement>) {
+    const active = stick.current
+    if (!active || e.pointerId !== active.pointer) return
+    const offset = { x: e.clientX - active.center.x, y: e.clientY - active.center.y }
+    active.vector = joystickVector(offset, active.travel)
+    e.currentTarget.style.setProperty('--stick-x', `${active.vector.x * active.travel}px`)
+    e.currentTarget.style.setProperty('--stick-y', `${active.vector.y * active.travel}px`)
+  }
+
+  function grabStick(e: PointerEvent<HTMLDivElement>) {
+    if (isPaused.current || stick.current || e.button !== 0) return
     e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    keys.current.set(e.pointerId, key)
+    const zone = e.currentTarget
+    const rect = zone.getBoundingClientRect()
+    stick.current = {
+      pointer: e.pointerId,
+      center: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+      travel: rect.width * .27,
+      vector: { x: 0, y: 0 },
+    }
+    zone.setPointerCapture(e.pointerId)
+    zone.dataset.active = 'true'
+    moveStick(e)
   }
 
-  function releaseDirection(e: PointerEvent<HTMLButtonElement>) {
-    keys.current.delete(e.pointerId)
+  function releaseStick(e: PointerEvent<HTMLDivElement>) {
+    if (stick.current?.pointer !== e.pointerId) return
+    stick.current = null
+    e.currentTarget.style.removeProperty('--stick-x')
+    e.currentTarget.style.removeProperty('--stick-y')
+    delete e.currentTarget.dataset.active
   }
 
   useEffect(() => {
     const element = canvas.current
     const ctx = element?.getContext('2d')
     if (!element || !ctx) return
-    const terrain = makeTerrain(hunt)
+    const portrait = window.matchMedia(PORTRAIT_QUERY)
+    let terrain = makeTerrain(hunt, battle.current.field)
     const image = new Image()
     image.src = SPRITE_URL
     element.focus({ preventScroll: true })
@@ -114,17 +150,23 @@ function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; o
     let frame = 0
     let previous = 0
     let lastHud = 0
+    let drawn: Battle | undefined
+    let spriteReady = false
     function paint(now: number) {
       const dt = previous > 0 ? Math.min((now - previous) / 1000, .04) : 0
       previous = now
       if (!isPaused.current && !document.hidden) battle.current = tickBattle(battle.current, movement(), dt)
       const current = battle.current
-      drawBattle(ctx!, terrain, current, image)
+      if (drawn !== current || spriteReady !== image.complete) {
+        drawBattle(ctx!, terrain, current, image)
+        drawn = current
+        spriteReady = image.complete
+      }
       if (current.result) {
         completion.current(current)
         return
       }
-      if (now - lastHud >= 80) {
+      if (!isPaused.current && now - lastHud >= 80) {
         lastHud = now
         setHud(current)
       }
@@ -141,18 +183,31 @@ function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; o
       if (action && !event.repeat) useAction(action)
     }
     const up = (event: KeyboardEvent) => { keys.current.delete(event.code) }
-    const clear = () => { keys.current.clear() }
+    const onVisibility = () => {
+      if (document.hidden) pause(true)
+    }
+    const onRotate = () => {
+      const field = portrait.matches ? PORTRAIT_FIELD : FIELD
+      battle.current = resizeBattlefield(battle.current, field)
+      element.width = field.width
+      element.height = field.height
+      terrain = makeTerrain(hunt, field)
+      setHud(battle.current)
+      pause(true)
+    }
+    portrait.addEventListener('change', onRotate)
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
-    window.addEventListener('blur', clear)
-    document.addEventListener('visibilitychange', clear)
+    window.addEventListener('blur', clearMovement)
+    document.addEventListener('visibilitychange', onVisibility)
     frame = requestAnimationFrame(paint)
     return () => {
       cancelAnimationFrame(frame)
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
-      window.removeEventListener('blur', clear)
-      document.removeEventListener('visibilitychange', clear)
+      portrait.removeEventListener('change', onRotate)
+      window.removeEventListener('blur', clearMovement)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [hunt])
 
@@ -169,8 +224,9 @@ function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; o
         </div>
         <div className="koki-hunt-arena-nav">
           <span className="koki-hunt-time">{formatTime(hud.elapsed)}</span>
-          <button onClick={togglePause}>{t(paused ? '再開' : '一時停止')}</button>
+          <button onClick={() => pause(!isPaused.current)}>{t(paused ? '再開' : '一時停止')}</button>
           <button onClick={onExit}>{t('クエスト一覧')}</button>
+          <GameFullscreenButton className="koki-hunt-arena-fullscreen" />
         </div>
       </div>
       <div className="koki-hunt-meters">
@@ -178,29 +234,42 @@ function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; o
         <Meter label={t('スタミナ')} value={hud.stamina} max={100} kind="stamina" />
         <Meter label={`${t(hunt.name)} HP`} value={hud.monsterHp} max={hunt.hp} kind="monster" />
       </div>
-      <canvas className="koki-hunt-field" ref={canvas} width={FIELD.width} height={FIELD.height} tabIndex={0} aria-label={t('狩猟フィールド')} aria-describedby="koki-hunt-controls" />
-      <div className="koki-hunt-status" role="status" data-warning={warning} data-opening={opening}>{t(notice)}</div>
-      <div className="koki-hunt-controls" id="koki-hunt-controls">
-        <p>{t('移動 WASD / 矢印キー')}</p>
-        <div className="koki-hunt-dpad">
-          {TOUCH_MOVES.map((move) => (
-            <button key={move.key} type="button" aria-label={t(move.label)} data-direction={move.key}
-              disabled={paused}
-              onPointerDown={(e) => pressDirection(e, move.key)}
-              onPointerUp={releaseDirection}
-              onPointerCancel={releaseDirection}
-              onLostPointerCapture={releaseDirection}
-            >{move.icon}</button>
-          ))}
-        </div>
-        <div className="koki-hunt-strikes">
-          {ACTIONS.map(({ action, label, key }) => (
-            <button key={action} type="button" className={`koki-hunt-${action}`} disabled={paused} onClick={() => useAction(action)}>
-              {t(label)} <kbd>{key}</kbd>
-            </button>
-          ))}
+      <div className="koki-hunt-board">
+        <canvas className="koki-hunt-field" ref={canvas} width={initialField.width} height={initialField.height} tabIndex={0} aria-label={t('狩猟フィールド')} aria-describedby="koki-hunt-controls" />
+        <div className="koki-hunt-controls" id="koki-hunt-controls">
+          <p>{t('移動 WASD / 矢印キー')}</p>
+          <div
+            className="koki-hunt-stick"
+            ref={stickZone}
+            role="group"
+            aria-label={t('移動')}
+            aria-disabled={paused}
+            onPointerDown={grabStick}
+            onPointerMove={moveStick}
+            onPointerUp={releaseStick}
+            onPointerCancel={releaseStick}
+            onLostPointerCapture={releaseStick}
+          >
+            <span className="koki-hunt-stick-knob" aria-hidden="true" />
+          </div>
+          <div className="koki-hunt-strikes">
+            {ACTIONS.map(({ action, label, key }) => (
+              <button key={action} type="button" className={`koki-hunt-${action}`} disabled={paused}
+                onPointerDown={(event) => {
+                  if (event.button === 0) useAction(action)
+                }}
+                onClick={(event) => {
+                  // キーボード／支援技術のクリックだけ補完し、ポインターでは二重に発動させない。
+                  if (event.detail === 0) useAction(action)
+                }}
+              >
+                {t(label)} <kbd>{key}</kbd>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+      <div className="koki-hunt-status" role="status" data-warning={!paused && warning} data-opening={!paused && opening}>{t(notice)}</div>
     </section>
   )
 }
@@ -230,7 +299,7 @@ export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <main className="koki-hunt">
+    <main className={hunt && !result ? 'koki-hunt koki-hunt--playing' : 'koki-hunt'}>
       <div className="koki-hunt-inner">
         <div className="game-nav koki-hunt-nav">
           <button className="game-back" onClick={onBack}>← {t('ゲーム選択にもどる')}</button>

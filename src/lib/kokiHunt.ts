@@ -2,6 +2,7 @@ export const HUNT_TITLE = '退勤ハント'
 export const HUNT_LEAD = '出勤服のkokiで、退勤後の狩猟へ。大型獣の予兆を読んで回避し、反撃の一撃を叩き込もう。'
 
 export const FIELD = { width: 760, height: 444 }
+export const PORTRAIT_FIELD = { width: 444, height: 720 }
 export const HUNTS = [
   { id: 'cinder', name: '煤角獣', place: '夕暮れの採石場', telegraph: '直線に突進する。横へ避けてから近づこう。', hp: 110, speed: 51, damage: 23, windup: 1.05, recovery: 1.48 },
   { id: 'gale', name: '薄明翼', place: '風鳴りの高台', telegraph: '翼の周囲を薙ぎ払う。円の外へ回避しよう。', hp: 155, speed: 78, damage: 28, windup: 0.88, recovery: 1.38 },
@@ -10,12 +11,14 @@ export const HUNTS = [
 export type HuntId = (typeof HUNTS)[number]['id']
 export type Hunt = (typeof HUNTS)[number]
 export type Point = { x: number; y: number }
+export type Field = { width: number; height: number }
 export type Action = 'slash' | 'heavy' | 'dodge'
 export type Signal = 'slash' | 'heavy' | 'miss' | 'dodge' | 'hurt' | 'tired'
 type Phase = 'prowl' | 'windup' | 'strike' | 'recover'
 
 export type Battle = {
   hunt: Hunt
+  field: Field
   player: Point
   monster: Point
   aim: Point
@@ -42,10 +45,18 @@ export const direction = (from: Point, to: Point): Point => {
   const distance = dist(from, to)
   return distance === 0 ? { x: 1, y: 0 } : { x: (to.x - from.x) / distance, y: (to.y - from.y) / distance }
 }
-const step = (p: Point, toward: Point, amount: number, margin: number): Point => ({
-  x: Math.max(margin, Math.min(FIELD.width - margin, p.x + toward.x * amount)),
-  y: Math.max(margin, Math.min(FIELD.height - margin, p.y + toward.y * amount)),
+const step = (field: Field, p: Point, toward: Point, amount: number, margin: number): Point => ({
+  x: Math.max(margin, Math.min(field.width - margin, p.x + toward.x * amount)),
+  y: Math.max(margin, Math.min(field.height - margin, p.y + toward.y * amount)),
 })
+
+export function joystickVector(offset: Point, radius: number): Point {
+  const distance = Math.hypot(offset.x, offset.y)
+  const deadZone = radius * .16
+  if (distance <= deadZone) return { x: 0, y: 0 }
+  const speed = Math.min(1, (distance - deadZone) / (radius - deadZone))
+  return { x: (offset.x / distance) * speed, y: (offset.y / distance) * speed }
+}
 
 export const ATTACKS = {
   slash: { range: 103, cost: 9, damage: 13, time: 0.19 },
@@ -57,12 +68,31 @@ export const CHARGE_WIDTH = 116
 export const CHARGE_SPEED = 555
 export const CHARGE_TIME = .43
 
-export function createBattle(hunt: Hunt): Battle {
+export function createBattle(hunt: Hunt, field: Field = FIELD): Battle {
+  const portrait = field.height > field.width
   return {
-    hunt, player: { x: 200, y: 285 }, monster: { x: 535, y: 200 },
+    hunt, field,
+    player: portrait ? { x: 144, y: 444 } : { x: 200, y: 285 },
+    monster: portrait ? { x: 300, y: 213 } : { x: 535, y: 200 },
     aim: { x: -1, y: 0 }, dodgeDir: { x: 1, y: 0 },
     hp: 100, monsterHp: hunt.hp, stamina: 100, attack: null, playerTimer: 0, dodgeTimer: 0,
     phase: 'prowl', phaseTimer: 0.65, elapsed: 0, impact: 0, impactedMonster: false, signal: null, signalTimer: 0, struck: false, result: null,
+  }
+}
+
+export function resizeBattlefield(battle: Battle, field: Field): Battle {
+  if (battle.field === field) return battle
+  // 回転で当たり判定の距離が急変しないよう、位置関係を保って新しい中心に移す。
+  // 狭くなった軸で端からはみ出した座標だけ、新しい境界に収める。
+  const offset = {
+    x: (field.width - battle.field.width) / 2,
+    y: (field.height - battle.field.height) / 2,
+  }
+  return {
+    ...battle,
+    field,
+    player: step(field, battle.player, offset, 1, 20),
+    monster: step(field, battle.monster, offset, 1, 47),
   }
 }
 
@@ -99,13 +129,13 @@ function damagePlayer(battle: Battle) {
 export function tickBattle(battle: Battle, movement: Point, dt: number): Battle {
   if (battle.result) return battle
   const next = { ...battle }
-  const { hunt } = next
+  const { hunt, field } = next
   next.elapsed += dt
   next.impact = Math.max(0, next.impact - dt)
   next.signalTimer = Math.max(0, next.signalTimer - dt)
   if (next.signalTimer === 0) next.signal = null
   if (next.dodgeTimer > 0) {
-    next.player = step(next.player, next.dodgeDir, DODGE.speed * Math.min(dt, next.dodgeTimer), 20)
+    next.player = step(field, next.player, next.dodgeDir, DODGE.speed * Math.min(dt, next.dodgeTimer), 20)
     next.dodgeTimer = Math.max(0, next.dodgeTimer - dt)
   } else if (next.attack) {
     next.playerTimer -= dt
@@ -132,7 +162,8 @@ export function tickBattle(battle: Battle, movement: Point, dt: number): Battle 
   } else {
     next.stamina = Math.min(100, next.stamina + 25 * dt)
     if (movement.x || movement.y) {
-      next.player = step(next.player, direction({ x: 0, y: 0 }, movement), 208 * dt, 20)
+      const magnitude = Math.max(1, Math.hypot(movement.x, movement.y))
+      next.player = step(field, next.player, movement, 208 * dt / magnitude, 20)
     }
   }
 
@@ -140,7 +171,7 @@ export function tickBattle(battle: Battle, movement: Point, dt: number): Battle 
   if (next.phase === 'prowl') {
     const distance = dist(next.monster, next.player)
     next.aim = direction(next.monster, next.player)
-    if (distance > 74) next.monster = step(next.monster, next.aim, hunt.speed * dt, 47)
+    if (distance > 74) next.monster = step(field, next.monster, next.aim, hunt.speed * dt, 47)
     if (next.phaseTimer <= 0 && distance < (hunt.id === 'cinder' ? 248 : 152)) {
       next.phase = 'windup'
       next.phaseTimer = hunt.windup * (next.monsterHp <= hunt.hp * .35 ? .8 : 1)
@@ -150,7 +181,7 @@ export function tickBattle(battle: Battle, movement: Point, dt: number): Battle 
     next.phase = 'strike'
     next.phaseTimer = hunt.id === 'cinder' ? CHARGE_TIME : .26
   } else if (next.phase === 'strike') {
-    if (hunt.id === 'cinder') next.monster = step(next.monster, next.aim, CHARGE_SPEED * Math.min(dt, next.phaseTimer + dt), 47)
+    if (hunt.id === 'cinder') next.monster = step(field, next.monster, next.aim, CHARGE_SPEED * Math.min(dt, next.phaseTimer + dt), 47)
     const radius = hunt.id === 'cinder' ? CHARGE_WIDTH / 2 : SWEEP_RADIUS
     if (dist(next.monster, next.player) <= radius) damagePlayer(next)
     if (next.phaseTimer <= 0) {

@@ -240,6 +240,10 @@
   font-size: 12px;
 }
 
+.koki-hunt .koki-hunt-arena-fullscreen {
+  display: none;
+}
+
 .koki-hunt-meters {
   display: grid;
   grid-template-columns: 1fr .7fr 1fr;
@@ -311,8 +315,7 @@
   gap: 7px;
 }
 
-.koki-hunt .koki-hunt-strikes button,
-.koki-hunt .koki-hunt-dpad button {
+.koki-hunt .koki-hunt-strikes button {
   min-height: 44px;
   padding: 7px 11px;
   border: 1px solid #89907c;
@@ -322,13 +325,11 @@
   font-weight: 700;
 }
 
-.koki-hunt .koki-hunt-strikes button:active,
-.koki-hunt .koki-hunt-dpad button:active {
+.koki-hunt .koki-hunt-strikes button:active {
   background: #667952;
 }
 
-.koki-hunt .koki-hunt-strikes button:disabled,
-.koki-hunt .koki-hunt-dpad button:disabled {
+.koki-hunt .koki-hunt-strikes button:disabled {
   opacity: .55;
 }
 
@@ -342,17 +343,9 @@
   font-size: 11px;
 }
 
-.koki-hunt-dpad {
+.koki-hunt-stick {
   display: none;
-  grid-template-columns: repeat(3, minmax(44px, 1fr));
-  grid-template-rows: repeat(2, 44px);
-  gap: 4px;
 }
-
-.koki-hunt-dpad [data-direction='ArrowUp'] { grid-column: 2; }
-.koki-hunt-dpad [data-direction='ArrowLeft'] { grid-area: 2 / 1; }
-.koki-hunt-dpad [data-direction='ArrowDown'] { grid-area: 2 / 2; }
-.koki-hunt-dpad [data-direction='ArrowRight'] { grid-area: 2 / 3; }
 
 .koki-hunt-result {
   max-width: 750px;
@@ -367,16 +360,192 @@
 @media (max-width: 670px) {
   .koki-hunt-quests { grid-template-columns: minmax(0, 1fr); }
   .koki-hunt-cover { gap: 8px; }
+  .koki-hunt-cover h1 { font-size: clamp(26px, 7.2vw, 44px); }
   .koki-hunt-cover p:last-child { font-size: 13px; }
   .koki-hunt-quest-art canvas { max-height: 145px; }
   .koki-hunt-arena-head { align-items: flex-end; }
   .koki-hunt-arena-nav { gap: 5px; }
 }
 
-@media (pointer: coarse), (max-width: 700px) {
-  .koki-hunt-dpad { display: grid; }
+@media (pointer: coarse), (max-width: 700px), (max-width: 1100px) and (max-height: 540px) and (orientation: landscape) {
+  .app:has(> .koki-hunt--playing) {
+    max-width: none;
+    padding: 0;
+  }
+
+  .app:has(> .koki-hunt--playing) > :is(.header, .footer, .scroll-top),
+  .koki-hunt--playing .koki-hunt-nav {
+    display: none;
+  }
+
+  .koki-hunt--playing {
+    box-sizing: border-box;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 260px;
+    padding: max(5px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right))
+      max(5px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    overscroll-behavior: none;
+  }
+
+  .koki-hunt--playing .koki-hunt-inner {
+    height: 100%;
+    max-width: none;
+  }
+
+  .koki-hunt-arena {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    max-width: 1050px;
+    height: 100%;
+    gap: 5px;
+  }
+
+  .koki-hunt-arena-head {
+    align-items: center;
+    padding-inline: 3px;
+  }
+
+  .koki-hunt-arena h1 {
+    font-size: clamp(18px, 5vw, 24px);
+  }
+
+  .koki-hunt-arena-head .koki-hunt-kicker {
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+
+  .koki-hunt-arena-nav {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .koki-hunt-arena-nav button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 2px 5px;
+    font-size: 11px;
+  }
+
+  .koki-hunt .koki-hunt-arena-fullscreen {
+    display: inline-flex;
+  }
+
+  .koki-hunt-time {
+    font-size: 11px;
+  }
+
+  .koki-hunt-meters {
+    margin: 0 3px;
+  }
+
+  .koki-hunt-meter progress {
+    height: 6px;
+  }
+
+  .koki-hunt-board {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    border: 1px solid #9b967b;
+    background: var(--hunt-art-dark);
+  }
+
+  .koki-hunt-field {
+    box-sizing: border-box;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    object-fit: contain;
+  }
+
+  .koki-hunt-status {
+    min-height: 0;
+    padding: 5px 6px;
+  }
+
+  .koki-hunt-controls {
+    position: absolute;
+    inset: auto clamp(6px, 2vw, 18px) clamp(7px, 2vh, 16px);
+    align-items: end;
+    margin: 0;
+    pointer-events: none;
+  }
+
   .koki-hunt-controls p,
   .koki-hunt-controls kbd { display: none; }
-  .koki-hunt-strikes { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-  .koki-hunt .koki-hunt-strikes button { padding-inline: 7px; }
+
+  .koki-hunt-stick {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: clamp(102px, 30vmin, 132px);
+    aspect-ratio: 1;
+    border: 1px solid #fff1d58c;
+    border-radius: 50%;
+    background: radial-gradient(circle, #eee8d526 0 28%, #101b1866 60%, #101b18a6);
+    box-shadow: inset 0 0 0 5px #f3e2b215, 0 2px 6px #17222170;
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .koki-hunt-stick[aria-disabled='true'] {
+    opacity: .55;
+    pointer-events: none;
+  }
+
+  .koki-hunt-stick-knob {
+    width: 42%;
+    aspect-ratio: 1;
+    border: 1px solid #fff4d4c7;
+    border-radius: 50%;
+    background: #eae5cd60;
+    box-shadow: 0 2px 7px #101b1890;
+    transform: translate(var(--stick-x, 0px), var(--stick-y, 0px));
+    pointer-events: none;
+  }
+
+  .koki-hunt-stick[data-active] .koki-hunt-stick-knob {
+    background: #f4edcf94;
+  }
+
+  .koki-hunt-strikes {
+    display: grid;
+    gap: clamp(4px, 1.6vmin, 8px);
+    grid-template-areas: 'slash heavy' '. dodge';
+  }
+
+  .koki-hunt .koki-hunt-strikes button {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: clamp(50px, 15vmin, 65px);
+    aspect-ratio: 1;
+    padding: 0;
+    border: 1px solid #f5e5b798;
+    border-radius: 50%;
+    background: #17241cb0;
+    box-shadow: 0 2px 6px #101b1890;
+    color: #fff6df;
+    font-size: clamp(11px, 3.5vmin, 14px);
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .koki-hunt .koki-hunt-slash { grid-area: slash; }
+  .koki-hunt .koki-hunt-strikes .koki-hunt-heavy {
+    grid-area: heavy;
+    background: #663c2abf;
+  }
+  .koki-hunt .koki-hunt-strikes .koki-hunt-dodge {
+    grid-area: dodge;
+    background: #324759bf;
+  }
+  .koki-hunt .koki-hunt-strikes button:active {
+    border-color: #fff6df;
+    background: #697648;
+  }
 }

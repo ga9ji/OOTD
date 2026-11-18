@@ -1,4 +1,4 @@
-import { ATTACKS, CHARGE_SPEED, CHARGE_TIME, CHARGE_WIDTH, FIELD, SWEEP_RADIUS, type Battle, type Hunt, type Point } from '../lib/kokiHunt'
+import { ATTACKS, CHARGE_SPEED, CHARGE_TIME, CHARGE_WIDTH, FIELD, SWEEP_RADIUS, type Battle, type Field, type Hunt, type Point } from '../lib/kokiHunt'
 
 export const KOKI_SPRITE = 'n18ee10bb4342'
 const TAU = Math.PI * 2
@@ -24,12 +24,13 @@ function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number
   ctx.fill()
 }
 
-export function makeTerrain(hunt: Hunt) {
+export function makeTerrain(hunt: Hunt, field: Field) {
   const terrain = document.createElement('canvas')
-  terrain.width = FIELD.width
-  terrain.height = FIELD.height
+  terrain.width = field.width
+  terrain.height = field.height
   const ctx = terrain.getContext('2d')
   if (!ctx) return terrain
+  ctx.scale(field.width / FIELD.width, field.height / FIELD.height)
   const gale = hunt.id === 'gale'
   const fill = ctx.createLinearGradient(0, 0, 580, 490)
   fill.addColorStop(0, gale ? '#385b58' : '#705440')

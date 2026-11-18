@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { act, createBattle, direction, HUNTS, tickBattle, type Battle } from '../kokiHunt'
+import { act, createBattle, direction, FIELD, HUNTS, joystickVector, PORTRAIT_FIELD, resizeBattlefield, tickBattle, type Battle } from '../kokiHunt'
 import { decodeHash, encodeHash } from '../router'
 
 const STILL = { x: 0, y: 0 }
@@ -52,5 +52,24 @@ describe('退勤ハント', () => {
 
   it('モンスターから離れる方向を求める', () => {
     expect(direction({ x: 1, y: 1 }, { x: 4, y: 5 })).toEqual({ x: .6, y: .8 })
+  })
+
+  it('スティックは中心の遊びを無視し、斜めに倒しても最大速度を超えない', () => {
+    expect(joystickVector({ x: 2, y: 1 }, 30)).toEqual(STILL)
+    const diagonal = joystickVector({ x: 120, y: -160 }, 30)
+    expect(diagonal).toEqual({ x: .6, y: -.8 })
+    const partial = joystickVector({ x: 16, y: 0 }, 30)
+    const start = createBattle(HUNTS[0])
+    const moving = tickBattle(start, partial, .1)
+    expect(moving.player.x - start.player.x).toBeCloseTo(208 * partial.x * .1)
+  })
+
+  it('縦持ちから横持ちにしても狩猟状態を引き継ぎ、座標を画面内に収める', () => {
+    const start = createBattle(HUNTS[0], PORTRAIT_FIELD)
+    const nearEdge = { ...start, player: { x: 100, y: 698 }, elapsed: 5, hp: 77 }
+    const turned = resizeBattlefield(nearEdge, FIELD)
+    expect(turned).toMatchObject({ field: FIELD, elapsed: 5, hp: 77, player: { x: 258, y: 424 } })
+    const walking = tickBattle(turned, { x: 0, y: 1 }, .2)
+    expect(walking.player.y).toBe(424)
   })
 })

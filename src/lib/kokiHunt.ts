@@ -1,10 +1,12 @@
+import { RIVAL_LOOKS } from './kokiHuntLooks'
+
 export const HUNT_TITLE = '退勤ハント'
-export const HUNT_LEAD = '出勤服のkokiで、退勤後の狩猟へ。大型獣の予兆を読んで回避し、反撃の一撃を叩き込もう。'
+export const HUNT_LEAD = '出勤服を選んで、服好きのkokiたちと退勤後のファッションバトル。'
 
 export const FIELD = { width: 760, height: 444 }
 export const HUNTS = [
-  { id: 'cinder', name: '煤角獣', place: '夕暮れの採石場', telegraph: '直線に突進する。横へ避けてから近づこう。', hp: 185, speed: 60, damage: 23, windup: 1.05, recovery: 1.48 },
-  { id: 'gale', name: '薄明翼', place: '風鳴りの高台', telegraph: '翼の周囲を薙ぎ払う。円の外へ回避しよう。', hp: 230, speed: 78, damage: 28, windup: 0.88, recovery: 1.38 },
+  { id: 'cinder', name: RIVAL_LOOKS.cinder.label, place: '夕暮れの採石場', telegraph: '50年代のジャケットを集める古着好き。木製ハンガーを引いたら、横へ回避。', hp: 185, speed: 60, damage: 23, windup: 1.05, recovery: 1.48 },
+  { id: 'gale', name: RIVAL_LOOKS.gale.label, place: '風鳴りの高台', telegraph: '赤いコートにストールを合わせる重ね着好き。布を広げたら、円の外へ。', hp: 230, speed: 78, damage: 28, windup: 0.88, recovery: 1.38 },
 ] as const
 
 export type HuntId = (typeof HUNTS)[number]['id']

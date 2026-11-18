@@ -1,6 +1,7 @@
 import * as THREE from 'three'
-import { ATTACKS, CHARGE_SPEED, CHARGE_TIME, CHARGE_WIDTH, SWEEP_RADIUS, type Battle, type HuntId } from '../lib/kokiHunt'
-import { makeHunter, makeMonster, poseHunter, poseMonster } from './kokiHuntModels3d'
+import { ATTACKS, CHARGE_SPEED, CHARGE_TIME, CHARGE_WIDTH, SWEEP_RADIUS, type Battle } from '../lib/kokiHunt'
+import { makeBlade, makeHanger, makeScarf, photoActor, posePlayer, poseRival } from './kokiHuntModels3d'
+import { RIVAL_LOOKS, type HuntLook } from '../lib/kokiHuntLooks'
 import { GROUND_SCALE, groundHeight, groundPosition, makeWorld } from './kokiHuntWorld3d'
 
 const yawOf = (x: number, z: number) => Math.atan2(x, z)
@@ -23,7 +24,7 @@ function clearScene(scene: THREE.Scene) {
   geometries.forEach((geometry) => geometry.dispose())
   const textures = new Set<THREE.Texture>()
   materials.forEach((material) => {
-    if (material instanceof THREE.MeshStandardMaterial && material.bumpMap) textures.add(material.bumpMap)
+    if (material instanceof THREE.MeshBasicMaterial && material.map) textures.add(material.map)
     material.dispose()
   })
   textures.forEach((texture) => texture.dispose())
@@ -136,7 +137,7 @@ function makeSlash() {
   return slash
 }
 
-export function makeHuntScene(canvas: HTMLCanvasElement, initial: Battle) {
+export function makeHuntScene(canvas: HTMLCanvasElement, initial: Battle, look: HuntLook, photos: [HTMLImageElement, HTMLImageElement]) {
   const mobile = window.matchMedia('(pointer: coarse), (max-width: 700px)').matches
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: !mobile, powerPreference: mobile ? 'default' : 'high-performance' })
   renderer.setClearColor(0x364844)
@@ -147,8 +148,9 @@ export function makeHuntScene(canvas: HTMLCanvasElement, initial: Battle) {
 
   const scene = new THREE.Scene()
   const dust = makeWorld(scene, initial.hunt.id, mobile)
-  const player = makeHunter()
-  const monster = makeMonster(initial.hunt.id)
+  const player = photoActor(look, photos[0], 2.10, makeBlade())
+  const rivalProp = initial.hunt.id === 'cinder' ? makeHanger() : makeScarf()
+  const monster = photoActor(RIVAL_LOOKS[initial.hunt.id], photos[1], 2.70, rivalProp)
   const warning = makeWarning()
   const sparks = makeSparks()
   const slash = makeSlash()
@@ -156,7 +158,7 @@ export function makeHuntScene(canvas: HTMLCanvasElement, initial: Battle) {
 
   const camera = new THREE.PerspectiveCamera(56, 1, .08, 175)
   const desired = new THREE.Vector3()
-  const look = new THREE.Vector3()
+  const focus = new THREE.Vector3()
   const target = new THREE.Vector3()
   let yaw = yawOf(initial.monster.x - initial.player.x, initial.monster.y - initial.player.y)
   let preceding = groundPosition(initial.player, initial.field)
@@ -213,23 +215,10 @@ export function makeHuntScene(canvas: HTMLCanvasElement, initial: Battle) {
     const blend = 1 - Math.exp(-dt * 9)
     if (distance > 1.6) yaw = approachAngle(yaw, yawOf(dx, dz), 1 - Math.exp(-dt * 4.2))
 
-    const facing = battle.dodgeTimer > 0 ? yawOf(battle.dodgeDir.x, battle.dodgeDir.y)
-      : speed > .05 && !battle.attack ? yawOf(driftX, driftZ)
-        : yawOf(dx, dz)
-    player.root.rotation.y = approachAngle(player.root.rotation.y, facing, fitted ? Math.max(.04, blend) : 1)
     player.root.position.set(p.x, groundHeight(p.x, p.z), p.z)
-    poseHunter(player, battle, gait, speed)
-
     monster.root.position.set(m.x, groundHeight(m.x, m.z), m.z)
-    const monsterYaw = yawOf(battle.aim.x, battle.aim.y)
-    monster.root.rotation.y = approachAngle(monster.root.rotation.y, monsterYaw, fitted ? Math.max(.05, blend) : 1)
-    poseMonster(monster, battle)
-    if (battle.impactedMonster && battle.impact > 0) {
-      monster.body.rotation.y = Math.sin(battle.impact * 28) * battle.impact * .35
-      monster.body.position.y -= battle.impact * .34
-    } else {
-      monster.body.rotation.y = 0
-    }
+    posePlayer(player, battle, gait, speed)
+    poseRival(monster, battle)
 
     updateWarning(warning, battle, m.x, m.z)
     const impact = battle.impactedMonster ? m : p
@@ -255,13 +244,16 @@ export function makeHuntScene(canvas: HTMLCanvasElement, initial: Battle) {
     target.set(p.x + sin * 4.1, lift + 1.48, p.z + cos * 4.1)
     if (!fitted) {
       camera.position.copy(desired)
-      look.copy(target)
+      focus.copy(target)
       fitted = true
     } else {
       camera.position.lerp(desired, blend)
-      look.lerp(target, blend)
+      focus.lerp(target, blend)
     }
-    camera.lookAt(look)
+    camera.lookAt(focus)
+    for (const actor of [player, monster]) {
+      actor.root.rotation.y = yawOf(camera.position.x - actor.root.position.x, camera.position.z - actor.root.position.z)
+    }
     dust.position.x = Math.sin(battle.elapsed * .16) * 1.7
     dust.position.z = Math.cos(battle.elapsed * .22) * .7
     renderer.render(scene, camera)
@@ -274,26 +266,5 @@ export function makeHuntScene(canvas: HTMLCanvasElement, initial: Battle) {
       clearScene(scene)
       renderer.dispose()
     },
-  }
-}
-
-export function paintHuntTrophy(canvas: HTMLCanvasElement, id: HuntId) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
-  renderer.setSize(canvas.width, canvas.height, false)
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
-  const scene = new THREE.Scene()
-  const monster = makeMonster(id)
-  scene.add(monster.root)
-  scene.add(new THREE.HemisphereLight(0xffead2, 0x616b78, 2.6))
-  const key = new THREE.DirectionalLight(id === 'cinder' ? 0xffb882 : 0xcefaff, 3)
-  key.position.set(-3, 7, 5)
-  scene.add(key)
-  const camera = new THREE.PerspectiveCamera(38, canvas.width / canvas.height, .1, 30)
-  camera.position.set(id === 'cinder' ? 6.8 : 5.3, 3.9, 7.8)
-  camera.lookAt(0, 1.19, 0)
-  renderer.render(scene, camera)
-  return () => {
-    clearScene(scene)
-    renderer.dispose()
   }
 }

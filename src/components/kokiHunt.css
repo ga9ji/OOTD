@@ -141,14 +141,7 @@
     radial-gradient(ellipse at 55% 48%, var(--hunt-art), var(--hunt-art-dark));
 }
 
-.koki-hunt-quest-art canvas {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-height: 270px;
-  object-fit: contain;
-  filter: drop-shadow(0 10px 12px #15181987);
-}
+
 
 .koki-hunt-quest-copy,
 .koki-hunt-result-copy {
@@ -370,7 +363,6 @@
   .koki-hunt-cover { gap: 8px; }
   .koki-hunt-cover h1 { font-size: clamp(26px, 7.2vw, 44px); }
   .koki-hunt-cover p:last-child { font-size: 13px; }
-  .koki-hunt-quest-art canvas { max-height: 145px; }
   .koki-hunt-arena-head { align-items: flex-end; }
   .koki-hunt-arena-nav { gap: 5px; }
 }
@@ -557,3 +549,29 @@
     background: #697648;
   }
 }
+
+.koki-hunt-portrait {
+  display: block;
+  position: relative;
+  height: clamp(125px, 17vw, 205px);
+  max-width: 100%;
+  overflow: hidden;
+}
+.koki-hunt-portrait img { position: absolute; width: auto; max-width: none; }
+.koki-hunt-fitting { max-width: 840px; margin: auto; }
+.koki-hunt-fitting h1 { margin: 0 0 16px; font-size: clamp(24px, 6vw, 40px); }
+.koki-hunt-looks { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; margin-bottom: 18px; }
+.koki-hunt-look {
+  position: relative; display: grid; justify-items: center; gap: 6px; padding: 12px 5px;
+  border: 2px solid transparent; background: #e9e6db; color: #202c24; cursor: pointer;
+}
+.koki-hunt-look[aria-pressed='true'] { border-color: #526e4c; background: #f4f4df; }
+.koki-hunt-look span { position: absolute; right: 6px; top: 6px; border-radius: 50%; background: #324c39; color: white; width: 22px; }
+.koki-hunt-look img { height: clamp(128px, 22vw, 190px); max-width: 100%; object-fit: contain; }
+.koki-hunt-look small { font: 600 10px/1.2 monospace; letter-spacing: .06em; }
+.koki-hunt-look strong { font-size: 14px; }
+@media (max-width: 560px) {
+  .koki-hunt-looks { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+.koki-hunt-fitting .koki-hunt-secondary { background: var(--hunt-paper); }

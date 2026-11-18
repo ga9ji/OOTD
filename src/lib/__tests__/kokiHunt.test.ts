@@ -22,7 +22,7 @@ describe('退勤ハント', () => {
     expect(act({ ...battle, stamina: 0 }, 'heavy', STILL).attack).toBeNull()
   })
 
-  it('煤角獣が突進の予兆に入ると、kokiが動いても向きを固定する', () => {
+  it('古着好きのkokiが突進の予兆に入ると、kokiが動いても向きを固定する', () => {
     const battle = createBattle(HUNTS[0])
     const near = { ...battle, player: { x: 380, y: 200 } }
     const warning = advance(near, .7)

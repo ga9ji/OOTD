@@ -6,10 +6,11 @@ import {
   act, cameraRelativeMove, createBattle, HUNTS, HUNT_TITLE, joystickVector, loadRecords, saveRecord, tickBattle,
   type Action, type Battle, type Hunt, type Point, type Signal,
 } from '../lib/kokiHunt'
-import { makeHuntScene, paintHuntTrophy } from './kokiHuntScene'
+import { PLAYER_LOOKS, RIVAL_LOOKS, loadHuntPhoto, photoUrl, type HuntLook } from '../lib/kokiHuntLooks'
+import { makeHuntScene } from './kokiHuntScene'
 import './kokiHunt.css'
 
-const SPRITE_URL = `${import.meta.env.BASE_URL}cutouts/n18ee10bb4342.webp`
+const SPRITE_URL = photoUrl(PLAYER_LOOKS[0])
 
 const MOVES: Record<string, Point> = {
   ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
@@ -35,16 +36,12 @@ function formatTime(seconds: number) {
 }
 
 function HuntIcon({ hunt }: { hunt: Hunt }) {
-  const canvas = useRef<HTMLCanvasElement>(null)
-  useEffect(() => {
-    if (!canvas.current) return
-    try {
-      return paintHuntTrophy(canvas.current, hunt.id)
-    } catch {
-      // WebGL の詳細はプレイ開始時に案内する。クエスト本文は引き続き表示できる。
-    }
-  }, [hunt])
-  return <canvas ref={canvas} width={448} height={294} aria-hidden="true" />
+  const look = RIVAL_LOOKS[hunt.id]
+  // Keep the full coat centered even for archive photos with transparent side margins.
+  const [left, top, width, height] = look.crop
+  return <span className="koki-hunt-portrait" style={{ aspectRatio: `${width} / ${height}` }}>
+    <img alt="" src={photoUrl(look)} style={{ height: `${240 / height * 100}%`, left: `${-left / width * 100}%`, top: `${-top / height * 100}%` }} />
+  </span>
 }
 
 function Meter({ label, value, max, kind }: { label: string; value: number; max: number; kind: string }) {
@@ -57,7 +54,9 @@ function Meter({ label, value, max, kind }: { label: string; value: number; max:
   )
 }
 
-function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; onComplete: (battle: Battle) => void }) {
+type Photos = [HTMLImageElement, HTMLImageElement]
+
+function Arena({ hunt, look, photos, onExit, onComplete }: { hunt: Hunt; look: HuntLook; photos: Photos; onExit: () => void; onComplete: (battle: Battle) => void }) {
   const { t } = useI18n()
   const [hud, setHud] = useState(() => createBattle(hunt))
   const [paused, setPaused] = useState(false)
@@ -146,7 +145,7 @@ function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; o
     if (!element) return
     let scene: ReturnType<typeof makeHuntScene>
     try {
-      scene = makeHuntScene(element, battle.current)
+      scene = makeHuntScene(element, battle.current, look, photos)
       sceneRef.current = scene
     } catch {
       setGraphicsError(true)
@@ -223,7 +222,7 @@ function Arena({ hunt, onExit, onComplete }: { hunt: Hunt; onExit: () => void; o
       sceneRef.current = null
       scene.dispose()
     }
-  }, [hunt])
+  }, [hunt, look, photos])
 
   const warning = hud.phase === 'windup' || hud.phase === 'strike'
   const opening = hud.phase === 'recover'
@@ -301,18 +300,43 @@ export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
   const [hunt, setHunt] = useState<Hunt | null>(null)
   const [result, setResult] = useState<Battle | null>(null)
   const [records, setRecords] = useState(loadRecords)
+  const [look, setLook] = useState(PLAYER_LOOKS[0])
+  const [photos, setPhotos] = useState<Photos | null>(null)
+  const [preparing, setPreparing] = useState(false)
+  const [photoError, setPhotoError] = useState(false)
+  const request = useRef(0)
+  useEffect(() => () => { request.current++ }, [])
   const [attempt, setAttempt] = useState(0)
   const resultHeading = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
     if (result) resultHeading.current?.focus({ preventScroll: true })
     scrollGameToTop()
-  }, [hunt, result, attempt])
+  }, [hunt, result, attempt, photos])
 
-  function start(next: Hunt) {
+  function prepare(next: Hunt | null) {
+    request.current++
+    setPhotos(null)
+    setPreparing(false)
+    setPhotoError(false)
     setHunt(next)
     setResult(null)
     setAttempt((current) => current + 1)
+  }
+
+  async function start() {
+    if (!hunt || preparing) return
+    const version = ++request.current
+    setPreparing(true)
+    setPhotoError(false)
+    try {
+      const decoded = await Promise.all([loadHuntPhoto(look), loadHuntPhoto(RIVAL_LOOKS[hunt.id])])
+      if (request.current === version) setPhotos(decoded)
+    } catch {
+      if (request.current === version) setPhotoError(true)
+    } finally {
+      if (request.current === version) setPreparing(false)
+    }
   }
 
   function finish(battle: Battle) {
@@ -321,7 +345,7 @@ export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <main className={hunt && !result ? 'koki-hunt koki-hunt--playing' : 'koki-hunt'}>
+    <main className={hunt && photos && !result ? 'koki-hunt koki-hunt--playing' : 'koki-hunt'}>
       <div className="koki-hunt-inner">
         <div className="game-nav koki-hunt-nav">
           <button className="game-back" onClick={onBack}>← {t('ゲーム選択にもどる')}</button>
@@ -332,9 +356,9 @@ export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
           <>
             <section className="koki-hunt-cover">
               <div>
-                <p className="koki-hunt-kicker">3D · {t('狩猟アクション')}</p>
+                <p className="koki-hunt-kicker">2.5D · {t('ファッションバトル')}</p>
                 <h1>{t(HUNT_TITLE)}</h1>
-                <p>{t('退勤後のkoki、ふたつの狩場へ。予兆を読んで回避し、獣が体勢を立て直す間に強撃を入れよう。')}</p>
+                <p>{t('今日の相手は、服が大好きなファッションモンスター。お気に入りの出勤服で挑もう。')}</p>
               </div>
               <figure>
                 <img src={SPRITE_URL} alt="" draggable={false} />
@@ -354,8 +378,8 @@ export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
                         <h3>{t(quest.name)}</h3>
                         <p>{t(quest.telegraph)}</p>
                         <div className="koki-hunt-quest-actions">
-                          <button className="koki-hunt-primary" onClick={() => start(quest)} aria-label={t('{name}の狩猟へ', { name: t(quest.name) })}>{t('狩猟へ')} <span aria-hidden="true">↗</span></button>
-                          <small>{time ? t('最速 {time}', { time: formatTime(time) }) : t('未討伐')}</small>
+                          <button className="koki-hunt-primary" onClick={() => prepare(quest)} aria-label={t('{name}との対戦準備', { name: t(quest.name) })}>{t('対戦準備')} <span aria-hidden="true">↗</span></button>
+                          <small>{time ? t('最速 {time}', { time: formatTime(time) }) : t('未勝利')}</small>
                         </div>
                       </div>
                     </article>
@@ -366,19 +390,39 @@ export default function KokiHuntGameView({ onBack }: { onBack: () => void }) {
           </>
         )}
 
-        {hunt && !result && <Arena key={attempt} hunt={hunt} onExit={() => setHunt(null)} onComplete={finish} />}
+        {hunt && !photos && (
+          <section className="koki-hunt-fitting">
+            <p className="koki-hunt-kicker">VS　{t(hunt.name)}</p>
+            <h1>{t('戦うkokiの出勤服を選ぶ')}</h1>
+            <div className="koki-hunt-looks" role="group" aria-label={t('出勤服')}>
+              {PLAYER_LOOKS.map(fit => (
+                <button key={fit.key} className="koki-hunt-look" disabled={preparing} aria-pressed={look.key === fit.key} onClick={() => setLook(fit)}>
+                  <img src={photoUrl(fit)} alt="" draggable={false} />
+                  <small>OOTD #{fit.no}</small><strong>{t(fit.label)}</strong>
+                  {look.key === fit.key && <span aria-hidden="true">✓</span>}
+                </button>
+              ))}
+            </div>
+            {photoError && <p role="alert">{t('写真を読み込めませんでした。もう一度お試しください。')}</p>}
+            <div className="koki-hunt-quest-actions">
+              <button className="koki-hunt-primary" disabled={preparing} onClick={start}>{t(preparing ? '写真を読み込み中' : 'このコーデで対戦')}</button>
+              <button className="koki-hunt-secondary" onClick={() => prepare(null)}>{t('クエスト一覧')}</button>
+            </div>
+          </section>
+        )}
+        {hunt && photos && !result && <Arena key={attempt} hunt={hunt} look={look} photos={photos} onExit={() => prepare(null)} onComplete={finish} />}
 
         {hunt && result && (
           <section className="koki-hunt-result" data-hunt={hunt.id}>
             <div className="koki-hunt-quest-art"><HuntIcon hunt={hunt} /></div>
             <div className="koki-hunt-result-copy">
               <p className="koki-hunt-kicker">{t(hunt.name)}</p>
-              <h1 tabIndex={-1} ref={resultHeading}>{t(result.result === 'won' ? '討伐成功' : '力尽きた')}</h1>
-              <p>{t(result.result === 'won' ? '討伐タイム {time}' : '経過時間 {time}', { time: formatTime(result.elapsed) })}</p>
-              <p>{result.result === 'won' ? t('kokiの素材獲得：{material}', { material: t(hunt.id === 'cinder' ? '煤角の欠片' : '薄明の風切羽') }) : t(hunt.telegraph)}</p>
+              <h1 tabIndex={-1} ref={resultHeading}>{t(result.result === 'won' ? 'コーデ対決に勝利' : 'コーデ対決に敗北')}</h1>
+              <p>{t(result.result === 'won' ? '対戦タイム {time}' : '経過時間 {time}', { time: formatTime(result.elapsed) })}</p>
+              <p>{result.result === 'won' ? t('記念アイテム　{material}', { material: t(hunt.id === 'cinder' ? '真鍮のハンガーチャーム' : '赤いストールピン') }) : t(hunt.telegraph)}</p>
               <div className="koki-hunt-quest-actions">
-                <button className="koki-hunt-primary" onClick={() => start(hunt)}>{t('再挑戦')}</button>
-                <button className="koki-hunt-secondary" onClick={() => { setHunt(null); setResult(null) }}>{t('クエスト一覧')}</button>
+                <button className="koki-hunt-primary" onClick={() => prepare(hunt)}>{t('再挑戦')}</button>
+                <button className="koki-hunt-secondary" onClick={() => prepare(null)}>{t('クエスト一覧')}</button>
               </div>
             </div>
           </section>

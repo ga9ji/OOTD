@@ -95,7 +95,8 @@
   align-items: center;
 }
 .gto-chrome-btn,
-.gto-chrome .game-fs-btn {
+.gto-chrome .game-fs-btn,
+.gto-chrome .game-share-btn {
   height: 28px;
   padding: 0 10px;
   border: 0;
@@ -105,6 +106,22 @@
   font-size: 11.5px;
   line-height: 28px;
 }
+/* 「リンクをコピーしました」はボタンの右に出す（暗い街の上でも読めるよう地を敷く） */
+.gto-chrome .game-share {
+  gap: 6px;
+}
+.gto-chrome .game-share-msg {
+  order: 1;
+  padding: 0 8px;
+  border-radius: 3px;
+  background: rgba(18, 23, 43, 0.72);
+  color: var(--gto-cloth);
+  line-height: 28px;
+  white-space: nowrap;
+}
+.gto-chrome .game-share-msg.error {
+  color: var(--gto-thread);
+}
 .gto-chrome .game-fs-btn {
   display: inline-grid;
   place-items: center;
@@ -112,7 +129,8 @@
   padding: 0;
 }
 .gto-chrome-btn:hover,
-.gto-chrome .game-fs-btn:hover {
+.gto-chrome .game-fs-btn:hover,
+.gto-chrome .game-share-btn:hover {
   background: rgba(18, 23, 43, 0.92);
   color: #fff;
 }

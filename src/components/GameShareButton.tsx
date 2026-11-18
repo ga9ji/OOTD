@@ -6,12 +6,14 @@ import GameFullscreenButton from './GameFullscreenButton'
 // ゲーム別OGPを持つ静的ページ（public/game/<name>/）のURLを共有する。
 // 共有シート非対応の環境ではクリップボードへのコピーで代替する。
 // どのゲームも最初の画面にこのボタンを置いているので、全画面ボタンもここに並べる。
+// 全画面ボタンを別の場所に置いているゲーム（Grand Theft Outfit）は fullscreen={false} で外す。
 type Props = {
-  game: 'memory' | 'duel' | 'platform' | 'tower' | 'chari' | 'quiz' | 'slot' | 'shiki' | 'kisekae' | 'clash'
+  game: 'memory' | 'duel' | 'platform' | 'tower' | 'chari' | 'quiz' | 'slot' | 'shiki' | 'kisekae' | 'clash' | 'gto'
   title: string
+  fullscreen?: boolean
 }
 
-export default function GameShareButton({ game, title }: Props) {
+export default function GameShareButton({ game, title, fullscreen = true }: Props) {
   const { t } = useI18n()
   const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle')
   const timer = useRef<number>()
@@ -35,7 +37,7 @@ export default function GameShareButton({ game, title }: Props) {
     <span className="game-share">
       {state === 'copied' && <span className="game-share-msg jp">{t('リンクをコピーしました')}</span>}
       {state === 'error' && <span className="game-share-msg error jp">{t('コピーできませんでした')}</span>}
-      <GameFullscreenButton />
+      {fullscreen && <GameFullscreenButton />}
       <button className="game-share-btn jp" onClick={onShare} title={t('このゲームのリンクを共有')}>
         {t('共有')}
       </button>

@@ -133,6 +133,7 @@ node scripts/cutout.mjs --force         # 作り直し
 ## ゲームの全画面
 
 全ゲーム共通。どのゲームも最初の画面の「共有」の隣に全画面ボタン（`GameFullscreenButton`）があり、見出し行のない画面（対戦中・結果のカードなど）にも個別に置いている。
+Grand Theft Outfit は画面左上の操作列（もどる・音・全画面）に全画面ボタンを常に置き、題名の画面だけその右に「共有」を出す（`GameShareButton` の `fullscreen={false}` で全画面ボタンの重複を外す）。
 
 - **切り替えるのは App のルート要素**（`src/lib/gameFullscreen.tsx` の `useGameFullscreenController`）。ゲームごとの要素を対象にすると、画面が切り替わるたび（選択 → 対戦 → 再戦など）に全画面が解けてしまう。ゲーム一覧へ戻ると解ける
 - **Fullscreen API が無い端末**（iPhone のブラウザ）や要求が拒否されたときは、`fixed` で画面を覆う擬似全画面に切り替える（`src/lib/fullscreen.ts` の `requestNativeFullscreen` が false を返したとき）。ルートのクラスは、どちらの全画面でも `.is-fullscreen`、擬似のときだけ `.is-pseudo-fullscreen` も付く

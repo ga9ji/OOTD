@@ -1,5 +1,6 @@
 import type { View } from '../App'
 import { useI18n } from '../lib/i18n'
+import { HUNT_LEAD, HUNT_TITLE } from '../lib/kokiHunt'
 
 // 「ゲーム」タブの着地ページ。ここでゲームを選んでから各ゲームへ遷移する。
 type Props = {
@@ -24,6 +25,12 @@ const GAMES: { view: View; title: string; tag: string; lead: string }[] = [
     title: '着戦',
     tag: 'KISEKAE CLASH',
     lead: 'ダメージをためてステージの外へ吹っ飛ばす対戦アクション。試合をまるごと先読みしてくるCPUに、崖・回避・ジャストガードで挑む。ファイターの性能は、その服の季節と色で変わる。',
+  },
+  {
+    view: 'koki-hunt',
+    title: HUNT_TITLE,
+    tag: 'HUNTING ACTION',
+    lead: HUNT_LEAD,
   },
   {
     view: 'gto',

@@ -27,6 +27,7 @@ const KisekaeGameView = lazy(() => import('./components/KisekaeGameView'))
 const ClashGameView = lazy(() => import('./components/ClashGameView'))
 // 3D の街（three.js と渋谷の地図データ）を抱えるので、開いたときだけ読み込む
 const GtoGameView = lazy(() => import('./components/GtoGameView'))
+const KokiHuntGameView = lazy(() => import('./components/KokiHuntGameView'))
 import { useSplits } from './lib/splitsStore'
 import { useHair } from './lib/hairStore'
 import { useHashRoute } from './lib/router'
@@ -53,6 +54,7 @@ export type View =
   | 'kisekae'
   | 'clash'
   | 'gto'
+  | 'koki-hunt'
 
 export type Filters = {
   from: string
@@ -179,7 +181,8 @@ export default function App() {
     view === 'shiki' ||
     view === 'kisekae' ||
     view === 'clash' ||
-    view === 'gto'
+    view === 'gto' ||
+    view === 'koki-hunt'
   const gameInteractionRef = useGameInteractionGuard(isPlayingGame)
   // 全画面はこのルート要素ごと切り替える。ゲームから出たら解ける。
   const fullscreen = useGameFullscreenController(gameInteractionRef, isPlayingGame)
@@ -264,18 +267,7 @@ export default function App() {
           </button>
           <button
             className={
-              view === 'game' ||
-              view === 'memory' ||
-              view === 'duel' ||
-              view === 'platform' ||
-              view === 'tower' ||
-              view === 'chari' ||
-              view === 'quiz' ||
-              view === 'slot' ||
-              view === 'shiki' ||
-              view === 'kisekae' ||
-              view === 'clash' ||
-              view === 'gto'
+              view === 'game' || isPlayingGame
                 ? 'tab active'
                 : 'tab'
             }
@@ -352,6 +344,7 @@ export default function App() {
         {view === 'kisekae' && <KisekaeGameView data={data} onBack={() => setView('game')} />}
         {view === 'clash' && <ClashGameView data={data} onBack={() => setView('game')} />}
         {view === 'gto' && <GtoGameView onBack={() => setView('game')} />}
+        {view === 'koki-hunt' && <KokiHuntGameView onBack={() => setView('game')} />}
       </Suspense>
 
       {(saveState === 'error' || hairSaveState === 'error') && (

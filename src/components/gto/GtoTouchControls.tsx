@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Poin
 import {
   dragStick,
   steerSlide,
-  TOUCH_CAPTION,
+  touchCaption,
   TOUCH_HINT_BEAT,
   TOUCH_PAD_CAPTION,
   TOUCH_SHOW,
@@ -49,6 +49,9 @@ interface Situation {
   outfits: number
   /** 案内の順送りの番号（数秒に1つ進む） */
   beat: number
+  /** [cheats] 飛行機に乗っているか・飛んでいるか（上昇・下降のボタンに読み替える） */
+  plane: boolean
+  airborne: boolean
 }
 
 /** 速さを「止まりかけ・境目・走っている」の3段に丸める（毎フレーム描き直さないため） */
@@ -62,12 +65,25 @@ const speedBand = (speed: number): number => {
 type HoldId = Extract<TouchButtonId, 'gas' | 'brake' | 'handbrake' | 'horn' | 'run'>
 
 // ---- ボタンの絵（48x48。塗りは currentColor、線は .gtt-line） ----
+// [cheats] 飛行機に乗っているあいだ、サイドブレーキと警笛のボタンに重ねる絵（上昇・下降の矢印）は、この下の FLIGHT_ICONS
 const Icon = ({ children }: { children: ReactNode }) => (
   <svg viewBox="0 0 48 48" aria-hidden="true">
     {children}
   </svg>
 )
 const CAR = 'M9 31 L13 20.5 Q14.2 17.5 17.5 17.5 H30.5 Q33.8 17.5 35 20.5 L39 31 V40 H33.5 V36.5 H14.5 V40 H9 Z M16 21 L13.8 27.5 H34.2 L32 21 Z M13 31.2 a2.2 2.2 0 1 0 4.4 0 a2.2 2.2 0 1 0 -4.4 0 Z M30.6 31.2 a2.2 2.2 0 1 0 4.4 0 a2.2 2.2 0 1 0 -4.4 0 Z'
+const FLIGHT_ICONS: Partial<Record<TouchButtonId, ReactNode>> = {
+  handbrake: (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M24 7 L41 27 H31 V41 H17 V27 H7 Z" />
+    </svg>
+  ),
+  horn: (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M24 41 L7 21 H17 V7 H31 V21 H41 Z" />
+    </svg>
+  ),
+}
 const ICONS: Record<TouchButtonId, ReactNode> = {
   // 走る人
   run: (
@@ -178,7 +194,7 @@ export default function GtoTouchControls({ engine }: { engine: GtoEngine }) {
   const knobRef = useRef<HTMLElement>(null)
   const arrowsRef = useRef<HTMLDivElement>(null)
   const [layout, setLayout] = useState<TouchLayout | null>(null)
-  const [now, setNow] = useState<Situation>({ mode: 'foot', canEnter: false, canSteal: false, speed: 0, outfits: 0, beat: 0 })
+  const [now, setNow] = useState<Situation>({ mode: 'foot', canEnter: false, canSteal: false, speed: 0, outfits: 0, beat: 0, plane: false, airborne: false })
   const [held, setHeld] = useState<ReadonlySet<HoldId>>(new Set())
 
   // 指の動きは毎フレーム来るので、React の状態にせず ref に持ち、見た目は transform を直接書く
@@ -240,7 +256,9 @@ export default function GtoTouchControls({ engine }: { engine: GtoEngine }) {
       const speed = state.mode === 'drive' ? speedBand(state.player.speed) : 0
       const outfits = state.outfit.wardrobe.length
       const beat = Math.floor(state.t / TOUCH_HINT_BEAT)
-      const key = `${state.mode}${view.canEnter ? 1 : 0}${view.canSteal ? 1 : 0}${speed}-${outfits}-${beat}`
+      const plane = view.ride === 'plane'
+      const airborne = view.altitude != null
+      const key = `${state.mode}${view.canEnter ? 1 : 0}${view.canSteal ? 1 : 0}${speed}-${outfits}-${beat}${plane ? 'p' : ''}${airborne ? 'a' : ''}`
       if (key === last) return
       last = key
       if (modeRef.current !== state.mode) {
@@ -252,7 +270,7 @@ export default function GtoTouchControls({ engine }: { engine: GtoEngine }) {
         engine.setTouch({ ...axes, handbrake: false, horn: false })
         setAutoRun(axes.run)
       }
-      setNow({ mode: state.mode, canEnter: view.canEnter, canSteal: view.canSteal, speed, outfits, beat })
+      setNow({ mode: state.mode, canEnter: view.canEnter, canSteal: view.canSteal, speed, outfits, beat, plane, airborne })
     })
   }, [engine])
 
@@ -381,10 +399,10 @@ export default function GtoTouchControls({ engine }: { engine: GtoEngine }) {
     const on = (b.hold && held.has(b.id as HoldId)) || (b.id === 'run' && autoRun)
     const handlers = b.hold ? holdProps(b.id as HoldId) : tapProps(b.id)
     return (
-      <button key={b.id} type="button" className={`gtt-btn ${f.cls}${on ? ' is-held' : ''}`} style={style} aria-label={f.label} data-gtt={b.id} {...handlers}>
-        {ICONS[b.id]}
+      <button key={b.id} type="button" className={`gtt-btn ${f.cls}${on ? ' is-held' : ''}`} style={style} aria-label={now.plane && (b.id === 'handbrake' || b.id === 'horn') ? t(touchCaption(b.id, true)) : f.label} data-gtt={b.id} {...handlers}>
+        {(now.plane ? FLIGHT_ICONS[b.id] : undefined) ?? ICONS[b.id]}
         {b.id === 'wardrobe' && now.outfits > 0 && <span className="gtt-count mono">{now.outfits}</span>}
-        <span className="gtt-cap jp">{t(TOUCH_CAPTION[b.id])}</span>
+        <span className="gtt-cap jp">{t(touchCaption(b.id, now.plane))}</span>
       </button>
     )
   }

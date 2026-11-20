@@ -16,7 +16,7 @@
 //   ・当たった車は弾き返され、当たった点を軸に向きを振られる。輪ごと跳ねる・部品が落ちる（vehicleCrash.ts）は、
 //     描画が速度の急な変化を見て作る（状態には持たない）。
 import { approach, clamp, dirOf, lerp } from './math'
-import type { GtoEvent, GtoWorld, InputFrame, VehicleControl, VehicleKind, VehicleState } from './types'
+import type { CarKind, GtoEvent, GtoWorld, InputFrame, SpecialKind, VehicleControl, VehicleKind, VehicleState } from './types'
 import { applyImpact } from './vehicleDamage'
 import { hitPole, polesNear } from './vehiclePoles'
 
@@ -38,6 +38,10 @@ export interface VehicleSpec {
   steerMax: number
   /** 重さ kg（衝突で押し負けるかどうか） */
   mass: number
+  /** [cheats] 履帯: 舵だけで向きを変える速さ rad/s（止まっていてもその場で回る）。無ければタイヤの車 */
+  pivot?: number
+  /** [cheats] 装甲: 当たっても凹まず、壊れない。街灯や街路樹にも止められない（押しのけて進む） */
+  armor?: boolean
 }
 
 // 加速は v = max·tanh(accel·t / max) になる。9 割に届く時間は 1.47·max / accel 秒。
@@ -48,7 +52,17 @@ export const VEHICLE_SPECS: Record<VehicleKind, VehicleSpec> = {
   taxi: { length: 4.4, width: 1.7, height: 1.72, wheelbase: 2.75, maxSpeed: 30, accel: 9, brake: 15, reverseMax: 9, grip: 17, steerMax: 0.6, mass: 1500 },
   van: { length: 5.2, width: 1.9, height: 2.1, wheelbase: 3.1, maxSpeed: 27, accel: 7, brake: 13, reverseMax: 8, grip: 15, steerMax: 0.55, mass: 2100 },
   police: { length: 4.7, width: 1.8, height: 1.46, wheelbase: 2.75, maxSpeed: 35, accel: 13.8, brake: 18, reverseMax: 10, grip: 20, steerMax: 0.6, mass: 1600 },
+  // [cheats] 裏コードで出す乗り物（lib/gto/cheats.ts）。形は専用（components/gto/renderSpecials.ts）
+  // 戦車: 遅くて重い。履帯なのでその場で回り、横へは滑らない。ほかの車は押しのける
+  tank: { length: 6.4, width: 3.1, height: 2.4, wheelbase: 3.8, maxSpeed: 13, accel: 5.5, brake: 16, reverseMax: 6, grip: 40, steerMax: 0.5, mass: 30000, pivot: 1.15, armor: true },
+  // 飛行機: 幅は胴体と脚のぶんだけ（翼は当たり判定に入れない。道幅より広いので、入れると走れない）。飛び方は aircraft.ts
+  plane: { length: 7.2, width: 2, height: 2.5, wheelbase: 2.2, maxSpeed: 52, accel: 12, brake: 14, reverseMax: 3, grip: 24, steerMax: 0.5, mass: 900 },
 }
+
+/** [cheats] 裏コードで出す乗り物か（専用の形で描き、ドアの演技なしで乗り降りする） */
+export const isSpecial = (kind: VehicleKind): kind is SpecialKind => kind === 'tank' || kind === 'plane'
+/** ふつうの車か（ドア・車室のある形で描く） */
+export const isCar = (kind: VehicleKind): kind is CarKind => !isSpecial(kind)
 
 /** 手触りを決める数字 */
 export const VEHICLE_TUNING = {
@@ -188,6 +202,8 @@ function hullCircles(spec: VehicleSpec): HullCircle[] {
 /** 舵と速さから、車体が回ろうとする速さ（rad/s）を出す */
 function yawTarget(spec: VehicleSpec, steer: number, speed: number, handbrake: boolean): number {
   const tune = VEHICLE_TUNING
+  // 履帯は左右の回る速さの差で曲がる（速さに関係なく、止まっていても回る）
+  if (spec.pivot != null) return steer * spec.pivot
   const kinematic = (speed / spec.wheelbase) * Math.tan(steer * spec.steerMax)
   // 速いほどタイヤが耐えられる旋回は小さい。舵の量に比例して上限を下げ、アナログ操作を生かす
   const limit = ((spec.grip * tune.overdrive) / Math.max(Math.abs(speed), 1)) * Math.abs(steer)
@@ -310,12 +326,12 @@ export function stepVehicle(
     if (-into > tune.crashSpeed) {
       // 知らせる場所は当たった点（煙と破片がそこから出る）
       events.push({ type: 'crash', x: cx + (res.x - cx) - res.nx * c.radius, z: cz + (res.z - cz) - res.nz * c.radius, value: -into, ref: String(v.id) })
-      hurt = applyImpact(hurt, -into, c.c - nr * c.radius, c.a - nf * c.radius, halfL, halfW)
+      if (!spec.armor) hurt = applyImpact(hurt, -into, c.c - nr * c.radius, c.a - nf * c.radius, halfL, halfW)
     }
   }
 
   // ---- 街灯・信号柱・街路樹の幹（車体の長方形で当てる。柱は動かないので、止められて跳ね返る） ----
-  for (const pole of polesNear(world, x, z, halfL + 1)) {
+  for (const pole of spec.armor ? [] : polesNear(world, x, z, halfL + 1)) {
     const hit = hitPole(x, z, f.x, f.z, halfL, halfW, pole)
     if (!hit) continue
     x += hit.nx * hit.push
@@ -424,6 +440,7 @@ function withVelocity(v: VehicleState, x: number, z: number, vx: number, vz: num
 /** 当たった点（世界の座標）を、当たる前の車体の座標に直して損傷を積む */
 function dentAt(next: VehicleState, before: VehicleState, hit: Contact, impact: number): VehicleState {
   const spec = VEHICLE_SPECS[before.kind]
+  if (spec.armor) return next
   const f = dirOf(before.heading)
   const dx = hit.px - before.x
   const dz = hit.pz - before.z

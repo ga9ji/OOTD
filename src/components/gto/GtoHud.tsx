@@ -138,6 +138,12 @@ export default function GtoHud({ engine, time, spriteUrl, touch }: Props) {
           </div>
         )}
         {speed}
+        {hud.altitude != null && (
+          <span className="gto-altitude mono">
+            {t('高度')} {hud.altitude}
+            <small>m</small>
+          </span>
+        )}
         {(street || hud.target) && (
           <div className="gto-place-row">
             {hud.target && <Target target={hud.target} />}

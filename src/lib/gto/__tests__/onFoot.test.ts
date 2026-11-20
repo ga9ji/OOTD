@@ -17,7 +17,7 @@ import {
   stepOnFoot,
   type CarSize,
 } from '../onFoot'
-import { createVehicle, VEHICLE_SPECS } from '../vehicle'
+import { createVehicle, isCar, VEHICLE_SPECS } from '../vehicle'
 import type { GtoEventType, InputFrame, PlayMode, PlayerState, VehicleState } from '../types'
 import { CAMERA_TUNING, createCamera, stepCamera } from '../camera'
 import { cabinLayout, doorSwing } from '../vehicleCabin'
@@ -545,7 +545,8 @@ describe('gto onFoot: 乗り降りの段（カメラは車の斜め後ろ外側�
 })
 
 describe('gto onFoot: 車のドアの枠と体の位置（車の担当のドア部品と噛み合う）', () => {
-  const KINDS = Object.keys(VEHICLE_SPECS) as (keyof typeof VEHICLE_SPECS)[]
+  // 戦車と飛行機（裏コードの乗り物）にはドアが無いので、ここでは見ない
+  const KINDS = (Object.keys(VEHICLE_SPECS) as (keyof typeof VEHICLE_SPECS)[]).filter(isCar)
   /** 車を原点に北向き（前が −z）で置く。車体の座標と世界の座標が一致する */
   const carOf = (kind: (typeof KINDS)[number]): VehicleState => ({ ...createVehicle(1, kind, ROAD.x, ROAD.z, 0, world) })
   /** 世界の点を、車体の座標（右が ＋x・後ろが ＋z）へ */

@@ -405,6 +405,48 @@ export const DEMOS: Record<string, DemoScenario> = {
     presses: [{ at: 0.5, press: 'enter' }],
     loop: 5.5,
   },
+  // [cheats] 裏コードで戦車を出して乗り、その場で回ってから前へ進む
+  'cheat-tank': {
+    label: '裏コード: 戦車を出して乗り、その場で回って進む',
+    mode: 'foot',
+    segments: [
+      { t0: 2.2, t1: 3.6, input: { moveX: 1 } },
+      { t0: 3.6, t1: 9, input: { moveY: 1 } },
+    ],
+    presses: [
+      { at: 0.5, press: 'cheat', cheat: 'tank' },
+      { at: 1.6, press: 'enter' },
+    ],
+    loop: 30,
+  },
+  // [cheats] 裏コードで飛行機を出して乗り、滑走して離陸し、旋回しながら上がる
+  'cheat-plane': {
+    label: '裏コード: 飛行機を出して乗り、離陸して旋回する',
+    mode: 'foot',
+    segments: [
+      { t0: 2.2, t1: 40, input: { moveY: 1 } },
+      { t0: 4.2, t1: 12, input: { handbrake: true } },
+      { t0: 9, t1: 16, input: { moveX: 0.7 } },
+    ],
+    presses: [
+      { at: 0.5, press: 'cheat', cheat: 'plane' },
+      { at: 1.6, press: 'enter' },
+    ],
+    loop: 60,
+  },
+  // [cheats] 手配度 3 から、裏コードで 1 つずつ下げる
+  'cheat-calm': {
+    label: '裏コード: 手配度を 1 つずつ下げる',
+    mode: 'foot',
+    stage: { wanted: 3 },
+    segments: [],
+    presses: [
+      { at: 2, press: 'cheat', cheat: 'calm' },
+      { at: 5, press: 'cheat', cheat: 'calm' },
+      { at: 8, press: 'cheat', cheat: 'calm' },
+    ],
+    loop: 30,
+  },
   carjack: {
     label: '運転手のいる車を奪う',
     mode: 'foot',
@@ -727,7 +769,7 @@ export function demoInput(scenario: DemoScenario, t: number, dt: number, view: D
     }
   }
   for (const p of scenario.presses ?? []) {
-    if (local >= p.at && local - dt < p.at) input = { ...input, [p.press]: true }
+    if (local >= p.at && local - dt < p.at) input = p.press === 'cheat' ? { ...input, cheat: p.cheat } : { ...input, [p.press]: true }
   }
   return input
 }

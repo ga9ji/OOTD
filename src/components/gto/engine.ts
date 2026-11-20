@@ -16,12 +16,13 @@ import type { Launch } from '../../lib/gto/shot'
 import { applySave, clearSave, hasProgress, loadSave, saveOf, saveSummary, storeSave, type SaveSummary } from '../../lib/gto/save'
 import { createGtoState, START_CASH, stepGto, viewOf, type GtoView } from '../../lib/gto/sim'
 import { titleCamera } from '../../lib/gto/titleCamera'
-import type { GtoState, GtoWorld, SimConfig } from '../../lib/gto/types'
+import type { CheatId, GtoState, GtoWorld, SimConfig } from '../../lib/gto/types'
 import { createActorsRenderer } from './renderActors'
 import { createCityRenderer } from './renderCity'
 import { createMarkersRenderer } from './renderMarkers'
 import { createSignsRenderer } from './renderSigns'
 import { createSkyRenderer } from './renderSky'
+import { createSpecialsRenderer } from './renderSpecials'
 import type { FrameInfo, RenderCtx, RenderPart } from './renderTypes'
 import { createVehiclesRenderer } from './renderVehicles'
 
@@ -59,6 +60,8 @@ export interface GtoEngine {
   setPaused: (paused: boolean) => void
   /** [outfit] 次の1歩で、ワードローブのこの服に着替える */
   wear: (key: string) => void
+  /** [cheats] 次の1歩で、スマホで通じた裏コードを効かせる */
+  cheat: (id: CheatId) => void
   dispose: () => void
 }
 
@@ -125,6 +128,7 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     createCityRenderer(ctx),
     createSignsRenderer(ctx),
     createVehiclesRenderer(ctx),
+    createSpecialsRenderer(ctx),
     createActorsRenderer(ctx),
     createMarkersRenderer(ctx),
   ]
@@ -164,6 +168,8 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
   // [outfit] 着替え画面: 時間を止める旗と、次の1歩で着替える服
   let paused = false
   let wearNext: string | null = null
+  // [cheats] スマホで通じた裏コード（次の1歩で効かせる）
+  let cheatNext: CheatId | null = null
   let padButtons: readonly boolean[] = []
   const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'])
   const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
@@ -322,8 +328,9 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     if (paused) acc = 0
     while (acc >= STEP && steps < MAX_STEPS) {
       const stepInput = nextInput()
-      state = stepGto(state, wearNext ? { ...stepInput, wear: wearNext } : stepInput, world, cfg, STEP)
+      state = stepGto(state, wearNext || cheatNext ? { ...stepInput, ...(wearNext ? { wear: wearNext } : {}), ...(cheatNext ? { cheat: cheatNext } : {}) } : stepInput, world, cfg, STEP)
       wearNext = null
+      cheatNext = null
       for (const e of state.events) audio.event(e)
       acc -= STEP
       steps++
@@ -386,6 +393,9 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     },
     wear: (key) => {
       wearNext = key
+    },
+    cheat: (id) => {
+      cheatNext = id
     },
     dispose: () => {
       disposed = true

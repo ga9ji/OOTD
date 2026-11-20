@@ -316,6 +316,10 @@ export interface TouchContext {
   canSteal: boolean
   /** 車の速さ m/s（後退は負） */
   speed: number
+  /** [cheats] 飛行機に乗っている（上昇・下降のボタンをいつも出し、「降りる」は着地してほぼ止まったときだけ出す） */
+  plane?: boolean
+  /** [cheats] 飛んでいる（車輪が地面から離れている） */
+  airborne?: boolean
 }
 
 /** 「降りる」を出す速さの上限と、「サイドブレーキ」を出す速さの下限（m/s）。重なりがあるので境目でちらつかない */
@@ -325,6 +329,11 @@ const usable = (id: TouchButtonId, ctx: TouchContext): boolean => {
   const speed = Math.abs(ctx.speed)
   if (id === 'enter') return ctx.canEnter
   if (id === 'steal') return ctx.canSteal
+  if (ctx.plane) {
+    // 上昇（サイドブレーキのボタン）と下降（警笛のボタン）はいつも出す。降りるのは着地してから
+    if (id === 'exit') return !ctx.airborne && speed <= TOUCH_SHOW.handbrakeAbove
+    return true
+  }
   if (id === 'exit') return speed < TOUCH_SHOW.exitBelow
   if (id === 'handbrake') return speed > TOUCH_SHOW.handbrakeAbove
   return true
@@ -354,6 +363,10 @@ export const TOUCH_CAPTION: Record<TouchButtonId, string> = {
   steal: '奪う',
   wardrobe: '着替え',
 }
+/** [cheats] 飛行機に乗っているあいだの名前: サイドブレーキのボタンが上昇、警笛のボタンが下降になる（sim.ts の操作の読み替えと同じ） */
+export const FLIGHT_CAPTION: Partial<Record<TouchButtonId, string>> = { handbrake: '上昇', horn: '下降' }
+/** ボタンの名前（飛行機に乗っていれば、上昇・下降に読み替える） */
+export const touchCaption = (id: TouchButtonId, flying = false): string => (flying ? FLIGHT_CAPTION[id] : undefined) ?? TOUCH_CAPTION[id]
 /** 左下の操作の名前（徒歩のスティックと、運転の左右矢印） */
 export const TOUCH_PAD_CAPTION: Record<PlayMode, string> = { foot: '移動', drive: 'ハンドル' }
 
@@ -397,6 +410,17 @@ const DRIVE_HINTS: TouchHint[] = [
   hint('drive-horn', { icon: 'horn', text: 'で警笛を鳴らす' }),
 ]
 
+// [cheats] 飛行機の案内（ボタンの絵は車のままなので、名前で言う）
+const PLANE_GROUND_HINTS: TouchHint[] = [
+  hint('plane-takeoff', { icon: 'gas', text: 'で滑走し、速くなったら「上昇」で飛び立つ' }),
+  hint('plane-exit', { text: '止まれば「降りる」が出る' }),
+]
+const PLANE_AIR_HINTS: TouchHint[] = [
+  hint('plane-height', { text: '「上昇」「下降」で高さを変える' }),
+  hint('plane-turn', { icon: 'steer', text: 'で旋回。' }, { icon: 'gas', text: 'を離すと遅くなって沈む' }),
+  hint('plane-land', { icon: 'brake', text: 'で遅くして、「下降」で道に降りる' }),
+]
+
 /**
  * その場面で使える操作の意味を1行で返す。
  * いまだけ使えるボタン（乗る・奪う）が出ているときはその説明、ふだんは基本の操作を beat ごとに順送りする。
@@ -404,6 +428,7 @@ const DRIVE_HINTS: TouchHint[] = [
  */
 export function touchHint(mode: PlayMode, ctx: TouchHintContext, beat: number): TouchHint {
   const turn = <T>(list: T[]): T => list[((Math.floor(beat) % list.length) + list.length) % list.length]
+  if (mode === 'drive' && ctx.plane) return turn(ctx.airborne ? PLANE_AIR_HINTS : PLANE_GROUND_HINTS)
   if (mode === 'drive') return Math.abs(ctx.speed) > TOUCH_SHOW.handbrakeAbove ? turn(DRIVE_HINTS) : HINT_STOPPED
   if (ctx.canEnter && ctx.canSteal) return hint('foot-enter-steal', { icon: 'enter', text: 'で車に乗る' }, { icon: 'steal', text: 'で服をいただく' })
   if (ctx.canEnter) return hint('foot-enter', HINT_ENTER)

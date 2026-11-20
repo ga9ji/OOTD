@@ -17,14 +17,14 @@
 //       状態には何も書き戻さない。
 import * as THREE from 'three'
 import { clamp, dirOf } from '../../lib/gto/math'
-import { VEHICLE_SPECS } from '../../lib/gto/vehicle'
+import { isCar, VEHICLE_SPECS } from '../../lib/gto/vehicle'
 import { attitudeTarget, bodyPose, restAttitude, restWheelLook, slideShake, stepAttitude, stepWheelLook, wheelTrails, type Attitude, type WheelLook } from '../../lib/gto/vehicleAttitude'
 import { crashKick, droppedParts, hopPose, impactFromVelocity, restCrashBody, stepCrashBody, wreckSag, type CrashBody } from '../../lib/gto/vehicleCrash'
 import { damageStage } from '../../lib/gto/vehicleDamage'
 import { wheelSurface } from '../../lib/gto/vehicleGround'
 import { limitPoleKinds } from '../../lib/gto/vehiclePoles'
 import { groundFit, restSuspension, stepSuspension, wheelOffsets, type Suspension, type WheelHeights } from '../../lib/gto/vehicleSuspension'
-import type { VehicleKind, VehicleState } from '../../lib/gto/types'
+import type { CarKind, VehicleKind, VehicleState } from '../../lib/gto/types'
 import type { FrameInfo, RenderCtx, RenderPart } from './renderTypes'
 import { createCrashFx } from './vehicleCrashFx'
 import { crushOf, DAMAGE_LOOK, deformGeometry, dentKey } from './vehicleDamageFx'
@@ -151,8 +151,8 @@ export function createVehiclesRenderer(ctx: RenderCtx): RenderPart {
   group.name = 'gto-vehicles'
   scene.add(group)
 
-  const shapes = new Map<VehicleKind, VehicleShape>()
-  const shapeOf = (kind: VehicleKind) => {
+  const shapes = new Map<CarKind, VehicleShape>()
+  const shapeOf = (kind: CarKind) => {
     const found = shapes.get(kind)
     if (found) return found
     const made = buildVehicleShape(kind, mobile ? 'lite' : 'high')
@@ -233,8 +233,8 @@ export function createVehiclesRenderer(ctx: RenderCtx): RenderPart {
     for (const car of cars.values()) yield car.body.material as THREE.MeshLambertMaterial | THREE.MeshPhongMaterial
   }
 
-  const makeCar = (v: VehicleState): Car => {
-    const shape = shapeOf(v.kind)
+  const makeCar = (v: VehicleState, kind: CarKind): Car => {
+    const shape = shapeOf(kind)
     const spec = VEHICLE_SPECS[v.kind]
     const paint = paintKit.paint(v.color)
     const body = new THREE.Mesh(shape.body, paint)
@@ -305,7 +305,7 @@ export function createVehiclesRenderer(ctx: RenderCtx): RenderPart {
     ground.add(shadow)
     root.add(ground)
     group.add(root)
-    const doors = doorKit.attach(chassis, v.kind, paint)
+    const doors = doorKit.attach(chassis, kind, paint)
     registerCarDoors(v.id, doors)
     return {
       doors,
@@ -661,6 +661,9 @@ export function createVehiclesRenderer(ctx: RenderCtx): RenderPart {
       tireShadowCount = 0
       const alive = new Set<number>()
       for (const v of frame.state.vehicles) {
+        // [cheats] 戦車と飛行機は専用の部品が描く（renderSpecials.ts）
+        const kind = v.kind
+        if (!isCar(kind)) continue
         alive.add(v.id)
         let car = cars.get(v.id)
         if (car && car.kind !== v.kind) {
@@ -668,7 +671,7 @@ export function createVehiclesRenderer(ctx: RenderCtx): RenderPart {
           car = undefined
         }
         if (!car) {
-          car = makeCar(v)
+          car = makeCar(v, kind)
           cars.set(v.id, car)
         }
         const paint = car.body.material as THREE.MeshLambertMaterial | THREE.MeshPhongMaterial

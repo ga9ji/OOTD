@@ -3,10 +3,11 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 import { buildVehicleShape, VEHICLE_LOOK } from '../../../components/gto/vehicleShape'
-import { VEHICLE_SPECS } from '../vehicle'
+import { isCar, VEHICLE_SPECS } from '../vehicle'
 import type { VehicleKind } from '../types'
 
-const KINDS = Object.keys(VEHICLE_SPECS) as VehicleKind[]
+// 戦車と飛行機（裏コードの乗り物）は専用の形なので、ここでは見ない
+const KINDS = (Object.keys(VEHICLE_SPECS) as VehicleKind[]).filter(isCar)
 const tris = (g: THREE.BufferGeometry) => g.attributes.position.count / 3
 const box = (g: THREE.BufferGeometry) => {
   g.computeBoundingBox()

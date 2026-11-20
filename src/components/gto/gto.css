@@ -285,6 +285,21 @@
   }
 }
 
+/* [cheats] 飛んでいるときの高さ（速度のすぐ下） */
+.gto-altitude {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--gto-mint);
+}
+.gto-altitude small {
+  margin-left: 2px;
+  font-size: 11px;
+}
+.gto-hud.is-touch .gto-altitude {
+  font-size: 12.5px;
+}
+
 /* 向かう先への矢印と距離 */
 .gto-target {
   display: inline-flex;

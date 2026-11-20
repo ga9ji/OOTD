@@ -8,8 +8,9 @@ import { useI18n } from '../lib/i18n'
 import type { CutoutsFile } from '../lib/platform'
 import GameFullscreenButton from './GameFullscreenButton'
 import GameShareButton from './GameShareButton'
-import GtoHud from './gto/GtoHud'
+import GtoHud, { MENU_EVENT } from './gto/GtoHud'
 import GtoMinimap from './gto/GtoMinimap'
+import GtoPhone, { PHONE_EVENT } from './gto/GtoPhone'
 import GtoTitle from './gto/GtoTitle'
 import GtoTouchControls from './gto/GtoTouchControls'
 import GtoWardrobe from './gto/GtoWardrobe'
@@ -108,6 +109,19 @@ export default function GtoGameView({ onBack }: Props) {
               {t(muted ? '音 OFF' : '音 ON')}
             </button>
             <GameFullscreenButton className="gto-fs" />
+            {/* [cheats] 遊んでいるあいだのメニューから、主人公のスマホを開く（メニューは閉じる） */}
+            {playing && (
+              <button
+                type="button"
+                className="gto-chrome-btn jp"
+                onClick={() => {
+                  stageRef.current?.dispatchEvent(new Event(MENU_EVENT))
+                  stageRef.current?.dispatchEvent(new Event(PHONE_EVENT))
+                }}
+              >
+                {t('スマホ')}
+              </button>
+            )}
             {/* 共有は題名の画面だけ（ほかのゲームと同じく最初の画面に置く） */}
             {!playing && <GameShareButton game="gto" title="Grand Theft Outfit" fullscreen={false} />}
           </div>
@@ -119,6 +133,7 @@ export default function GtoGameView({ onBack }: Props) {
             <GtoHud engine={engine} time={launch.time} spriteUrl={spriteUrl} touch={touch} />
             {touch && <GtoTouchControls engine={engine} />}
             <GtoWardrobe engine={engine} spriteUrl={spriteUrl} touch={touch} />
+            <GtoPhone engine={engine} touch={touch} />
           </>
         )}
 

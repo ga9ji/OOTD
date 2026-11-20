@@ -20,7 +20,7 @@ import { boardingPose, doorFrame, drivingSeat, FOOT_TUNING, gaitOf, SEAT_SEEN_DO
 import { createFootGround } from '../../lib/gto/onFootGround'
 import { easeGaitLevel } from '../../lib/gto/onFootRigView'
 import { HEAD_ABOVE_HIP, mixRig, REST_RIG, rigBoarding, rigGait, type RigPose } from '../../lib/gto/onFootRig'
-import { VEHICLE_SPECS } from '../../lib/gto/vehicle'
+import { isCar, VEHICLE_SPECS } from '../../lib/gto/vehicle'
 import { boardingAct, boardingBodyPose, gaitPose, mixPose, REST_POSE, type BodyPose } from '../../lib/gto/onFootPose'
 import { armGait, mixLimb, pickView, planarArm, projectArm, type ActorView, type ArmLimb } from '../../lib/gto/onFootArms'
 import { createArms, createBackSprites, placeArms, type Arms } from './renderActorArms'
@@ -496,7 +496,8 @@ export function createActorsRenderer(ctx: RenderCtx): RenderPart {
 
       if (board && board.side !== 0) seatSide = board.side
       // 運転中（ドアは閉まっている）: 座った上半身を、ドアの窓越しに見せる。スマホでは描かない
-      const mine = state.mode === 'drive' && !frame.photo && quality.id !== 'mobile' ? state.vehicles.find((v) => v.id === p.vehicleId) : undefined
+      // [cheats] 戦車と飛行機は窓が無い（体は描かない）
+      const mine = state.mode === 'drive' && !frame.photo && quality.id !== 'mobile' ? state.vehicles.find((v) => v.id === p.vehicleId && isCar(v.kind)) : undefined
       const shutIn = riding != null && riding.inside >= 1 && riding.door <= SEAT_SEEN_DOOR && drawnDoor <= SEAT_SEEN_DOOR
       const behindGlass = mine && (riding == null || shutIn) && windowFaces(mine, seatSide) ? mine : null
       const driving = behindGlass ? drivingSeat(behindGlass, VEHICLE_SPECS[behindGlass.kind], seatSide) : null

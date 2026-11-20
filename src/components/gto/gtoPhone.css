@@ -1,0 +1,293 @@
+/* Grand Theft Outfit [部品: cheats] 主人公のスマホ（裏コードを打つ画面）。
+   色は gto.css の変数（--gto-ink / --gto-cloth / --gto-thread / --gto-mint）、余白は --gto-top / --gto-right を使う。 */
+.gtp {
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  pointer-events: none;
+  color: var(--gto-cloth);
+}
+.gtp kbd {
+  display: inline-block;
+  min-width: 20px;
+  margin-right: 5px;
+  padding: 0 5px;
+  border-bottom: 2px solid var(--gto-thread);
+  background: var(--gto-cloth);
+  color: var(--gto-ink);
+  font-size: 0.86em;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ---------- 開くボタン（パソコン）: 右上の「着替え」のすぐ下 ---------- */
+.gtp-open {
+  position: absolute;
+  top: calc(var(--gto-top) + 136px);
+  right: var(--gto-right);
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: rgba(18, 23, 43, 0.72);
+  color: var(--gto-cloth);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.gtp-open:hover {
+  background: var(--gto-ink);
+}
+/* メニュー（もどる・音・全画面）が出ているあいだは隠す */
+.gto-stage[data-gto-hud='menu'] .gtp-open {
+  display: none;
+}
+
+/* ---------- 画面: 街を暗くして、まん中に端末を置く ---------- */
+.gtp-screen {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(10px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px))
+    max(10px, env(safe-area-inset-left, 0px));
+  pointer-events: auto;
+  animation: gtp-fade 0.16s ease-out both;
+}
+.gtp-veil {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(18, 23, 43, 0.72);
+  cursor: default;
+}
+/* 端末: 藍の筐体に、生成りの縫い目の縁取り */
+.gtp-phone {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  width: min(300px, 100%);
+  max-height: 100%;
+  padding: 14px 14px 16px;
+  border-radius: 22px;
+  background: var(--gto-ink);
+  box-shadow:
+    0 0 0 2px var(--gto-ink),
+    0 0 0 3.5px rgba(241, 231, 208, 0.55),
+    0 18px 40px rgba(0, 0, 0, 0.55);
+  overflow: auto;
+  animation: gtp-rise 0.22s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+.gtp-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 10px;
+  align-items: end;
+  padding-bottom: 7px;
+  border-bottom: 2px dashed rgba(255, 106, 43, 0.8);
+}
+.gtp-head small {
+  grid-column: 1 / -1;
+  color: var(--gto-thread);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+}
+.gtp-head h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+.gtp-close {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 3px;
+  background: rgba(241, 231, 208, 0.14);
+  color: var(--gto-cloth);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gtp-close:hover {
+  background: rgba(241, 231, 208, 0.26);
+}
+.gtp-side {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+/* 打った番号 */
+.gtp-display {
+  display: block;
+  padding: 7px 10px;
+  background: var(--gto-cloth);
+  color: var(--gto-ink);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.gtp-display.is-empty {
+  color: rgba(18, 23, 43, 0.45);
+  font-size: 14px;
+  line-height: 31px;
+  letter-spacing: 0;
+}
+.gtp-result {
+  margin: 0;
+  min-height: 18px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: right;
+}
+.gtp-result.is-ok {
+  color: var(--gto-mint);
+}
+.gtp-result.is-miss {
+  color: #ff8f8f;
+}
+/* メモ: 番号と効き目。押すとその番号へ発信する */
+.gtp-memo {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gtp-memo button {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  column-gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 3px 8px;
+  border: 0;
+  border-left: 3px solid var(--gto-thread);
+  background: rgba(241, 231, 208, 0.1);
+  color: var(--gto-cloth);
+  text-align: left;
+  cursor: pointer;
+}
+.gtp-memo button:hover:not(:disabled) {
+  background: rgba(241, 231, 208, 0.2);
+}
+.gtp-memo b {
+  color: var(--gto-mint);
+  font-size: 13px;
+}
+.gtp-memo span {
+  display: grid;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.gtp-memo small {
+  color: rgba(241, 231, 208, 0.6);
+  font-size: 10px;
+  font-weight: 400;
+}
+/* テンキー */
+.gtp-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.gtp-keys button {
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(241, 231, 208, 0.16);
+  color: var(--gto-cloth);
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.gtp-keys button:hover:not(:disabled) {
+  background: rgba(241, 231, 208, 0.3);
+}
+.gtp-keys button:active:not(:disabled) {
+  background: var(--gto-cloth);
+  color: var(--gto-ink);
+}
+.gtp-keys .is-call {
+  background: var(--gto-thread);
+  color: #fff;
+  font-size: 14px;
+}
+.gtp-keys .is-call:hover:not(:disabled) {
+  background: #ff814a;
+}
+.gtp-keys .is-erase svg {
+  display: block;
+  width: 26px;
+  height: 19px;
+  margin: 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.gtp button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 背の低い横長（スマホを横に持ったとき）: 端末を横向きにして、左に番号とメモ、右にテンキー */
+@media (max-height: 500px) and (orientation: landscape) {
+  .gtp-phone {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 14px;
+    width: min(560px, 100%);
+    padding: 10px 14px 12px;
+  }
+  .gtp-head {
+    grid-column: 1 / -1;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    padding-bottom: 5px;
+  }
+  .gtp-head small {
+    grid-column: auto;
+  }
+  .gtp-head h2 {
+    font-size: 16px;
+  }
+  .gtp-keys button {
+    min-height: 36px;
+  }
+}
+
+@keyframes gtp-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes gtp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gtp-screen,
+  .gtp-phone {
+    animation-duration: 0.01s;
+  }
+}

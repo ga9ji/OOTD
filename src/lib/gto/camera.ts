@@ -19,6 +19,10 @@ export interface CameraTarget {
   mode: PlayMode
   /** [onfoot] 乗り降りの段。あるあいだ、カメラは車の斜め後ろ外側に一定の距離で留まる（無ければふだんの背後カメラ） */
   stage?: CameraStage
+  /** [cheats] 大きな乗り物（戦車・飛行機）は、そのぶん引いて撮る（ふだんの距離に掛ける倍率。無ければ 1） */
+  reach?: number
+  /** [cheats] 空を飛んでいる。足元の建物と人をよけて寄らない（屋根より上にいるので、壁は遮らない） */
+  air?: boolean
 }
 
 /** [onfoot] 乗り降りの段: 相手の車と、使うドアの側 */
@@ -449,13 +453,13 @@ export function stepCamera(
   const wantTrail = clamp(Math.max(0, target.speed) * CAMERA_TUNING.trailTime, 0, CAMERA_TUNING.trailMax)
   const trailNow = cam.trail ?? 0
   const trail = damp(trailNow, wantTrail, wantTrail < trailNow ? CAMERA_TUNING.trailIn : CAMERA_TUNING.trailOut, dt)
-  const wantFlat = (tune.dist + trail) * cos
+  const wantFlat = (tune.dist * (target.reach ?? 1) + trail) * cos
 
   // 壁: 一歩も入らない（寄るのは即座）。通行人: なめらかに寄る。離れるのはゆっくり
-  const wall = wallLimit(world, pivot, viewYaw, wantFlat)
+  const wall = target.air ? { hard: wantFlat, soft: wantFlat } : wallLimit(world, pivot, viewYaw, wantFlat)
   const wallFlat = Math.max(CAMERA_TUNING.minDist * cos, wall.hard)
   const wallDist = wallFlat / cos
-  const goal = crowdLimit(crowd, pivot, viewYaw, Math.max(CAMERA_TUNING.minDist * cos, wall.soft), wantFlat) / cos
+  const goal = crowdLimit(target.air ? [] : crowd, pivot, viewYaw, Math.max(CAMERA_TUNING.minDist * cos, wall.soft), wantFlat) / cos
   const eased = goal < cam.dist ? damp(cam.dist, goal, CAMERA_TUNING.distIn, dt) : damp(cam.dist, goal, CAMERA_TUNING.distOut, dt)
   const dist = Math.min(eased, wallDist)
 

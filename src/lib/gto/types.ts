@@ -180,6 +180,8 @@ export interface GtoWorld {
   insideBuilding: (x: number, z: number) => boolean
   /** 円を建物と範囲の外枠から押し出す */
   resolveCircle: (x: number, z: number, r: number) => CircleHit
+  /** [cheats] その点にある建物の屋根の高さ（重なっていればいちばん高い屋根）。建物の外なら -Infinity。飛行機が上を越えられるかを見る */
+  roofY: (x: number, z: number) => number
   /** a→b の線分が最初に建物へ入る位置（0..1）。遮られなければ 1 */
   segmentClear: (ax: number, az: number, bx: number, bz: number) => number
   /** いちばん近い道。driveOnly なら車道だけ */
@@ -219,7 +221,12 @@ export interface InputFrame {
   steal: boolean
   /** [outfit] ワードローブから着替える服のキー（決めた1歩だけ入る。無ければ着替えない） */
   wear?: string
+  /** [cheats] スマホで打った裏コード（通じた1歩だけ入る。無ければ何もしない） */
+  cheat?: CheatId
 }
+
+/** [cheats] 裏コードの種類（lib/gto/cheats.ts）。calm=手配度を1つ下げる、plane=飛行機を出す、tank=戦車を出す */
+export type CheatId = 'calm' | 'plane' | 'tank'
 
 // ----------------------------------------------------------------------------
 // 動くもの
@@ -265,7 +272,11 @@ export interface Boarding {
   dt?: number
 }
 
-export type VehicleKind = 'sedan' | 'kei' | 'taxi' | 'van' | 'police'
+/** ふつうの車（ドア・車室・サスペンションのある形で描く） */
+export type CarKind = 'sedan' | 'kei' | 'taxi' | 'van' | 'police'
+/** [cheats] 裏コードで出す乗り物。専用の形で描き、ドアの演技なしで乗り降りする（lib/gto/special.ts） */
+export type SpecialKind = 'tank' | 'plane'
+export type VehicleKind = CarKind | SpecialKind
 export type Driver = 'none' | 'player' | 'traffic' | 'police'
 
 /** 交通の車が辿っている道（traffic.ts だけが読み書きする） */
@@ -312,6 +323,9 @@ export interface VehicleState {
   route: TrafficRoute | null
   /** 直前の1歩の前後加速度 m/s²（描画のピッチと音に使う） */
   accel: number
+  /** [cheats] 飛行機だけ: 車輪が地面から浮いている高さ m（0 か無ければ接地）と、上下の速さ m/s（上が＋）。飛んでいるあいだ y は「地面＋alt」 */
+  alt?: number
+  climb?: number
   /** [vehicle] 壊れ具合 0..1（vehicleDamage.ts の段階で白煙→黒煙→炎）。無ければ無傷 */
   damage?: number
   /** [vehicle] 車体の凹み 0..1。並びは vehicleDamage.ts の DENT（前の左・中・右、後ろの左・中・右、左側面、右側面）。無ければ無傷 */
@@ -324,6 +338,8 @@ export interface VehicleControl {
   brake: number
   steer: number
   handbrake: boolean
+  /** [cheats] 飛行機だけ: 上昇（＋1）・下降（−1）。無ければ 0 */
+  lift?: number
 }
 
 export type PedMood = 'walk' | 'flee' | 'stunned'
@@ -493,6 +509,7 @@ export type GtoEventType =
   | 'missionStep'
   | 'missionDone'
   | 'missionFail'
+  | 'cheat'
 
 /** その1歩で起きたこと。音・HUD・手配・ミッションはこれを読む */
 export interface GtoEvent {

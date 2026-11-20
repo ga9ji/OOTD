@@ -190,6 +190,8 @@ export function createBodyGlow(ctx: RenderCtx, field: GlowField, gain: number, l
       if (state.player.vehicleId == null && !frame.photo) addPerson(state.player.x, state.player.y, state.player.z)
       for (const p of state.peds) addPerson(p.x, p.y, p.z)
       for (const v of state.vehicles) {
+        // [cheats] 飛んでいる飛行機には、路面の看板の光を当てない
+        if ((v.alt ?? 0) > 1) continue
         if (cars.count >= limits.cars || !tintAt(v.x, v.z)) continue
         const spec = VEHICLE_SPECS[v.kind]
         const d = dirOf(v.heading)

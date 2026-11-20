@@ -24,8 +24,11 @@ import type {
   PlayMode,
   SimConfig,
   VehicleState,
+  SpecialKind,
 } from './types'
-import { collideVehicles, controlFromInput, createVehicle, idleControl, stepVehicle, VEHICLE_SPECS } from './vehicle'
+import { collideVehicles, controlFromInput, createVehicle, idleControl, isCar, isSpecial, stepVehicle, VEHICLE_SPECS } from './vehicle'
+import { flying, overhead, stepRide } from './aircraft'
+import { cheatOf, lowerWanted, spawnSpecial } from './cheats'
 import {
   createWanted,
   officerDone,
@@ -48,6 +51,8 @@ export const SPAWN = { x: 26, z: 32, heading: -0.75 }
 const BUST_FINE = 2000
 export const START_CASH = 1000
 const PLAYER_CAR_COLOR = 0xe2562b
+/** [cheats] 裏コードが効いた一言を出しておく秒 */
+const CHEAT_BANNER_SECONDS = 3
 
 export interface StartOptions {
   seed?: number
@@ -103,7 +108,7 @@ export function createGtoState(world: GtoWorld, cfg: SimConfig, opts: StartOptio
   if (opts.stage?.lineup) {
     // [vehicle] 撮影用: 全車種を主人公の前に斜めに並べる
     const f = dirOf(at.heading)
-    const kinds = Object.keys(VEHICLE_SPECS) as (keyof typeof VEHICLE_SPECS)[]
+    const kinds = (Object.keys(VEHICLE_SPECS) as (keyof typeof VEHICLE_SPECS)[]).filter(isCar)
     const paints = [0xe2562b, 0xf2c14e, 0x1f6b4a, 0xf2f2ee, 0xf4f4f4]
     kinds.forEach((kind, i) => {
       const side = (i - (kinds.length - 1) / 2) * 3.6 + 1.8
@@ -177,6 +182,12 @@ export function stepGto(state: GtoState, input: InputFrame, world: GtoWorld, cfg
   const events: GtoEvent[] = []
   let { player, vehicles, peds, outfit, mode, nextId, cash } = state
 
+  // ---- [cheats] スマホで打った裏コード（通じた 1 歩だけ入る） ----
+  // 手配度はこの 1 歩の判定の元になる値を下げる。乗り物は主人公の近くの車道に出す
+  const startWanted = input.cheat === 'calm' ? lowerWanted(state.wanted) : state.wanted
+  if (input.cheat === 'plane' || input.cheat === 'tank') vehicles = spawnSpecial(world, input.cheat, nextId++, player, vehicles)
+  if (input.cheat) events.push({ type: 'cheat', x: player.x, z: player.z, ref: input.cheat })
+
   // ---- 乗り降り ----
   // ドアへ走る → 開ける →（奪うなら運転手を降ろす）→ 座る → 閉める、の段階を onFoot が1歩ずつ進める
   {
@@ -241,22 +252,26 @@ export function stepGto(state: GtoState, input: InputFrame, world: GtoWorld, cfg
     const mine = vehicles.find((v) => v.id === player.vehicleId)
     if (mine) {
       // 乗り降りの途中（ドアが閉まるまで・降りるために停めるあいだ）はアクセルを受け付けない
-      const moved = stepVehicle(mine, canDrive(player) ? controlFromInput(input) : idleControl(), world, dt)
+      // [cheats] 飛行機は、サイドブレーキのボタンで上昇、走る・警笛のボタンで下降（aircraft.ts）。警笛は鳴らさない
+      const plane = mine.kind === 'plane'
+      const control = canDrive(player) ? controlFromInput(input) : idleControl()
+      const moved = stepRide(mine, plane ? { ...control, handbrake: false, lift: (input.handbrake ? 1 : 0) - (input.run || input.horn ? 1 : 0) } : control, world, dt)
       vehicles = replaceById(vehicles, moved.vehicle)
       events.push(...moved.events)
       const v = moved.vehicle
       player = { ...player, x: v.x, y: v.y, z: v.z, heading: v.heading, speed: v.speed }
-      if (input.horn && frame % 24 === 0) events.push({ type: 'horn', x: v.x, z: v.z })
+      if (input.horn && !plane && frame % 24 === 0) events.push({ type: 'horn', x: v.x, z: v.z })
     }
   }
 
   // ---- 警察と、乗り捨てられた車 ----
   vehicles = vehicles.map((v) => {
     if (v.driver === 'police') {
-      const control = state.wanted.level > 0 ? policeControl(v, player, world, state.wanted) : { throttle: 0, brake: v.speed > 0.5 ? 1 : 0, steer: 0, handbrake: true } // 停まったあとも踏み続けると後退するので、止まったらサイドブレーキだけ
+      const control = startWanted.level > 0 ? policeControl(v, player, world, startWanted) : { throttle: 0, brake: v.speed > 0.5 ? 1 : 0, steer: 0, handbrake: true } // 停まったあとも踏み続けると後退するので、止まったらサイドブレーキだけ
       return stepVehicle(v, control, world, dt).vehicle
     }
-    if (v.driver === 'none' && (Math.abs(v.speed) > 0.01 || Math.abs(v.slip) > 0.01)) return stepVehicle(v, idleControl(), world, dt).vehicle
+    // 乗り捨てられた車は惰性で動く。[cheats] 空に残された飛行機は、滑空して降りてくる
+    if (v.driver === 'none' && (Math.abs(v.speed) > 0.01 || Math.abs(v.slip) > 0.01 || flying(v))) return stepRide(v, idleControl(), world, dt).vehicle
     return v
   })
 
@@ -273,6 +288,8 @@ export function stepGto(state: GtoState, input: InputFrame, world: GtoWorld, cfg
     let a = vehicles.find((v) => v.id === pusher.id) ?? pusher
     for (const other of vehicles) {
       if (other.id === a.id) continue
+      // [cheats] 頭の上を飛んでいる飛行機は、地上の車に当たらない
+      if (overhead(a) || overhead(other)) continue
       const hit = collideVehicles(a, other)
       if (!hit) continue
       a = hit.a
@@ -306,11 +323,11 @@ export function stepGto(state: GtoState, input: InputFrame, world: GtoWorld, cfg
 
   // ---- 歩行者 ----
   const threats: PedThreat[] = vehicles
-    .filter((v) => v.driver !== 'traffic' && Math.abs(v.speed) > 1)
+    .filter((v) => v.driver !== 'traffic' && Math.abs(v.speed) > 1 && !overhead(v))
     .map((v) => ({ x: v.x, z: v.z, r: VEHICLE_SPECS[v.kind].width * 0.6 + 0.3, speed: Math.abs(v.speed), heading: v.speed >= 0 ? v.heading : v.heading + Math.PI }))
   const heard = [...state.events, ...events]
   const copThreats = mode === 'drive' ? threats.filter((th) => Math.hypot(th.x - player.x, th.z - player.z) < 0.5) : []
-  const copTarget = state.wanted.level === 0 ? null : state.wanted.unseen > 1 && state.wanted.lastSeen ? state.wanted.lastSeen : player
+  const copTarget = startWanted.level === 0 ? null : startWanted.unseen > 1 && startWanted.lastSeen ? startWanted.lastSeen : player
   peds = peds.map((p) => {
     // 徒歩の警官は通行人の動きを通さず、主人公（見失っていれば最後に見た場所）へ走らせる
     const stepped = p.cop ? stepOfficer(p, copTarget, world, copThreats, dt) : stepPed(p, world, threats, heard, R.next, dt, t)
@@ -333,7 +350,7 @@ export function stepGto(state: GtoState, input: InputFrame, world: GtoWorld, cfg
   const officers = peds.filter((p) => p.cop)
   const sight = policeSees(world, police, player.x, player.z, officers)
   const judged = stepWanted(
-    state.wanted,
+    startWanted,
     events,
     {
       policeDist: sight.dist,
@@ -393,7 +410,9 @@ export function stepGto(state: GtoState, input: InputFrame, world: GtoWorld, cfg
   cash += told.reward
   // 逮捕・逃げ切りの決着の一言（ミッションの一言が出ていなければ）
   const verdict = wantedBanner(events, t)
-  const mission = verdict && !(told.mission.banner && told.mission.banner.until > t) ? { ...told.mission, banner: verdict } : told.mission
+  const judgedMission = verdict && !(told.mission.banner && told.mission.banner.until > t) ? { ...told.mission, banner: verdict } : told.mission
+  // [cheats] 裏コードが効いたことを一言で知らせる
+  const mission = input.cheat ? { ...judgedMission, banner: { text: cheatOf(input.cheat).banner, until: t + CHEAT_BANNER_SECONDS } } : judgedMission
 
   // ---- カメラ ----
   const camera =
@@ -435,11 +454,18 @@ export interface GtoView {
   objective: string
   timeLeft: number | null
   banner: string
+  /** [cheats] 乗っている裏コードの乗り物（戦車・飛行機）。ふつうの車と徒歩は null */
+  ride: SpecialKind | null
+  /** [cheats] 飛んでいるときの、地面からの高さ m。飛んでいなければ null */
+  altitude: number | null
 }
 
 export function viewOf(state: GtoState): GtoView {
   const text = missionText(state.mission, state.t)
+  const mine = state.mode === 'drive' ? state.vehicles.find((v) => v.id === state.player.vehicleId) : undefined
   return {
+    ride: mine && isSpecial(mine.kind) ? mine.kind : null,
+    altitude: mine && flying(mine) ? (mine.alt ?? 0) : null,
     canEnter: state.mode === 'foot' && findEnterable(state.player, state.vehicles) != null,
     canSteal: state.mode === 'foot' && findStealTarget(state.player, state.peds, state.outfit.wearing) != null,
     // [missions] まわりの車も渡す（「車をつかまえる」段で、手近な車に印を付けるため）

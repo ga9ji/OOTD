@@ -19,6 +19,9 @@ export interface HudExtra {
   cue?: HudCueInput | null
   /** 進行中の手順のゲージ（missions.ts の missionGauge の形） */
   gauge?: HudGauge | null
+  /** [cheats] 乗っている裏コードの乗り物と、飛んでいるときの高さ m（sim.ts の viewOf） */
+  ride?: 'tank' | 'plane' | null
+  altitude?: number | null
 }
 
 /** ミッションの演出の入力。missions.ts の CueModel と同じ形（部品どうしは import しないので、形だけ合わせる） */
@@ -106,6 +109,8 @@ export interface HudModel {
   bust: number
   /** 車に乗っているときだけ */
   speedKmh: number | null
+  /** [cheats] 飛んでいるときだけ: 地面からの高さ m */
+  altitude: number | null
   /** いまいる通りの実名（無ければ空） */
   street: string
   /** 通りの英語名（地図データにあるときだけ） */
@@ -130,6 +135,8 @@ const BUST_SECONDS = 2.2
 const HURRY_SECONDS = 15
 /** これより遅いときだけ「降りる」の案内を出す m/s */
 const EXIT_PROMPT_SPEED = 4
+/** [cheats] 戦車と飛行機は、その場で降りる（onFoot.ts の SPECIAL_EXIT_SPEED）。その速さより遅いときだけ「降りる」を出す */
+const SPECIAL_EXIT_PROMPT_SPEED = 2
 
 const mmss = (s: number) => {
   const whole = Math.max(0, Math.ceil(s))
@@ -176,7 +183,10 @@ export function hudModel(state: GtoState, world: GtoWorld, extra: HudExtra): Hud
   const prompts: HudModel['prompts'] = []
   // 走っているあいだは「降りる」を出さない（常時表示を減らす）。止まりかけたら出す
   if (state.mode === 'drive') {
-    if (Math.abs(state.player.speed) < EXIT_PROMPT_SPEED) prompts.push({ key: 'F', label: '降りる' })
+    // [cheats] 飛行機は、上昇と下降のキーをいつも出す。降りられるのは、着地してほぼ止まったときだけ
+    if (extra.ride === 'plane') prompts.push({ key: 'Space', label: '上昇' }, { key: 'Shift', label: '下降' })
+    const canExit = extra.ride ? extra.altitude == null && Math.abs(state.player.speed) < SPECIAL_EXIT_PROMPT_SPEED : Math.abs(state.player.speed) < EXIT_PROMPT_SPEED
+    if (canExit) prompts.push({ key: 'F', label: '降りる' })
   } else {
     if (extra.canEnter) prompts.push({ key: 'F', label: '乗る' })
     if (extra.canSteal) prompts.push({ key: 'E', label: '服をいただく' })
@@ -188,6 +198,7 @@ export function hudModel(state: GtoState, world: GtoWorld, extra: HudExtra): Hud
     cooling: state.wanted.level > 0 && state.wanted.unseen > 0.5,
     bust: Math.min(1, state.wanted.bust / BUST_SECONDS),
     speedKmh: state.mode === 'drive' ? Math.round(Math.abs(state.player.speed) * 3.6) : null,
+    altitude: extra.altitude == null ? null : Math.round(extra.altitude),
     street,
     streetEn: (street && road && world.map.roads[road.road]?.nameEn) || '',
     clock: extra.clock,

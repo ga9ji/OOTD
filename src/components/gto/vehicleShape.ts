@@ -13,7 +13,7 @@ import { VEHICLE_SPECS } from '../../lib/gto/vehicle'
 import { archColumns, archCut, panelPoint } from '../../lib/gto/vehicleArch'
 import { cabinLayout } from '../../lib/gto/vehicleCabin'
 import { glossShade, topSheen, VEHICLE_GLOSS } from '../../lib/gto/vehicleGloss'
-import type { VehicleKind } from '../../lib/gto/types'
+import type { CarKind } from '../../lib/gto/types'
 import { addExterior, addFlares, BLACK, buildLamps, buildWheel, CREASE, GLASS, PAINT, Tris, WELL, type ExteriorDims, type LampStyle, type Rgb, type ShapeDetail } from './vehicleShapeParts'
 
 /** タイヤハウス: 車輪との隙間 m、側面を割る細かさ m、タイヤの外面が車体の側面より引っ込む量 m（負なら外へ張り出す。
@@ -55,7 +55,7 @@ interface Look {
   spoiler?: boolean
 }
 
-export const VEHICLE_LOOK: Record<VehicleKind, Look> = {
+export const VEHICLE_LOOK: Record<CarKind, Look> = {
   // 低く構えた 2 ドア風のファストバック。長い鼻、大きく寝た前後のガラス、短い尻に羽根（主人公の最初の車）
   sedan: {
     wheel: 0.33,
@@ -250,7 +250,7 @@ function ring(st: Station, look: Look, length: number, width: number, height: nu
 }
 
 /** 車体を作る。塗装色を掛ける面（paint）と、窓・黒い部品（trim）に分けて返す */
-function buildBody(kind: VehicleKind, detail: ShapeDetail): { paint: THREE.BufferGeometry; trim: THREE.BufferGeometry; gloss: THREE.BufferGeometry | null } {
+function buildBody(kind: CarKind, detail: ShapeDetail): { paint: THREE.BufferGeometry; trim: THREE.BufferGeometry; gloss: THREE.BufferGeometry | null } {
   const s = VEHICLE_SPECS[kind]
   const look = VEHICLE_LOOK[kind]
   const high = detail === 'high'
@@ -464,7 +464,7 @@ export interface VehicleShape {
 }
 
 /** 車輪（前後の位置 wheelZ m、半径 radius m）の真上で、肩の線がいちばん低い所の高さ m */
-function fenderTop(kind: VehicleKind, wheelZ: number, radius: number): number {
+function fenderTop(kind: CarKind, wheelZ: number, radius: number): number {
   const s = VEHICLE_SPECS[kind]
   const st = VEHICLE_LOOK[kind].stations
   const beltAt = (z: number): number => {
@@ -478,7 +478,7 @@ function fenderTop(kind: VehicleKind, wheelZ: number, radius: number): number {
 }
 
 /** 車輪の中心の左右の位置（車体の中心から） */
-function wheelTrack(kind: VehicleKind): number {
+function wheelTrack(kind: CarKind): number {
   return VEHICLE_SPECS[kind].width / 2 - VEHICLE_LOOK[kind].tire / 2 - ARCH.inset
 }
 
@@ -490,7 +490,7 @@ function lampBoxes(boxes: [w: number, h: number, l: number, x: number, y: number
 }
 
 /** 車種の形を作る。detail が 'lite'（スマホの軽量設定）なら、断面を補わず部品も省いた簡略な形 */
-export function buildVehicleShape(kind: VehicleKind, detail: ShapeDetail = 'high'): VehicleShape {
+export function buildVehicleShape(kind: CarKind, detail: ShapeDetail = 'high'): VehicleShape {
   const s = VEHICLE_SPECS[kind]
   const look = VEHICLE_LOOK[kind]
   const halfL = s.length / 2

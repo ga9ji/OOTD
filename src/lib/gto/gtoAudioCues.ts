@@ -205,6 +205,11 @@ export function playCue(kit: Kit, cue: AudioCue, at: number): void {
       ;[N.G4, N.E4 * 0.944, N.D4 * 0.89].forEach((f, i) => kit.tone({ at: at + i * 0.2, wave: 'triangle', f, f1: f * 0.96, dur: i === 2 ? 0.9 : 0.28, vol: 0.2 * g, verb: 0.5 }))
       kit.burst({ at: at + 0.4, noise: 'brown', filter: 'lowpass', f: 200, dur: 0.5, vol: 0.2 * g })
       break
+    case 'cheat':
+      // [cheats] 裏コードが通じた: 電話の呼び出しのような 2 連の短い音と、上へ抜ける 1 音
+      for (let i = 0; i < 2; i++) kit.tone({ at: at + i * 0.11, wave: 'square', f: N.A5, dur: 0.07, vol: 0.05 * g, attack: 0.005, lowpass: 2400 })
+      kit.bell(N.E6, at + 0.26, 0.6, 0.11 * g, 0)
+      break
     case 'shift':
       kit.burst({ at, noise: 'brown', filter: 'lowpass', f: 600, dur: 0.05, vol: 0.08 * g })
       kit.burst({ at: at + 0.01, filter: 'bandpass', f: 1900, q: 3, dur: 0.02, vol: 0.015 * g })

@@ -217,6 +217,15 @@ VITE_CLASH_REPORT=1 VITE_CLASH_GAMES=40 pnpm vitest run src/lib/__tests__/clash.
 VITE_SHIKI_REPORT=1 pnpm vitest run src/lib/__tests__/shiki.balance.test.ts --reporter=verbose
 ```
 
+## Grand Theft Outfit（渋谷のオープンワールド）
+
+ルールと世界は `src/lib/gto/`（部品ごとに 1 ファイル、先頭のコメントに入口と契約）、3D の描画と画面は `src/components/gto/`、画面の組み立ては `GtoGameView.tsx`。
+
+- **進行の保存**: 所持金・手持ちの服と着ている服・達成した依頼を `localStorage`（`gto.save.v1`）に残す（`src/lib/gto/save.ts`）。値が変わった歩で `engine.ts` が書き、次に開いたとき題名の画面に「つづきから／はじめから」が出る。場所・乗っている車・手配・進行中の依頼は残さない（続きは駅前の広場から、依頼は受け直す）。服の写真や依頼が後から減っても読めるよう、読むときに「いまも在る物」だけに絞る
+- **撮影用の URL では保存に触らない**: `?gtoShot=` `&demo=` `&mode=` で始めたとき（`lib/gto/shot.ts`）は読みも書きもしない。同じクエリなら同じ絵になり、遊んでいる進行も汚れない
+- **題名の画面のカメラ**は `src/lib/gto/titleCamera.ts`。交差点を見下ろす弧の上を往復する（駅のまわりを 1 周させると、同じ高さの高層棟とクレーンの中を通り抜ける）。建物・クレーンに近づかないことは `titleCamera.test.ts` が確かめる
+- **服をいただいたお知らせ**（`gtoWardrobe.css` の `.gtw-toast`）は、スマホでは右上の状態の塊のすぐ下に出す。縦持ちは目的の札の上、横持ちは右の操作ボタンの上に収まる背丈にしてあるので、大きさを変えるときは両方の向きで重ならないか見ること
+
 ## 公開ビルドのデータの持ち方
 
 公開ビルドは閲覧専用で書き込みAPIを持たないため、乗るのは **ファイルに焼き込まれたデータだけ**：

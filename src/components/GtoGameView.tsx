@@ -79,9 +79,9 @@ export default function GtoGameView({ onBack }: Props) {
   }, [launch, quality, audio])
   useEffect(() => () => audio.close(), [audio])
 
-  const start = () => {
+  const start = (fresh = false) => {
     audio.unlock()
-    engine?.start()
+    engine?.start({ fresh })
     setPlaying(true)
   }
 
@@ -122,7 +122,9 @@ export default function GtoGameView({ onBack }: Props) {
           </>
         )}
 
-        {engine && !playing && <GtoTitle onStart={start} attribution={world.map.meta.attribution} touch={touch} />}
+        {engine && !playing && (
+          <GtoTitle onStart={() => start()} onRestart={() => start(true)} resumed={engine.resumed} attribution={world.map.meta.attribution} touch={touch} />
+        )}
         {playing && showUi && <p className="gto-credit corner">{world.map.meta.attribution}</p>}
       </div>
     </main>

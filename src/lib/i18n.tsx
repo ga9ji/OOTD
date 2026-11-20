@@ -1211,6 +1211,14 @@ export const EN: Record<string, string> = {
   'F 乗る／降りる　E 服をいただく　Shift 走る　Space サイドブレーキ': 'F get in / out   E take outfit   Shift run   Space handbrake',
   '手配度 {level}': 'Wanted level {level}',
   '捕まる…': 'Getting caught…',
+  // [gto save] 題名の画面: 前回の進行の続きから／最初から
+  'つづきから': 'CONTINUE',
+  'はじめから': 'Start over',
+  'いまの進行を消して、最初からはじめますか？': 'Erase your progress and start from the beginning?',
+  '消してはじめる': 'Erase and start',
+  '服 {count}着': '{count} outfits',
+  '依頼 {done}/{total}': 'Jobs {done}/{total}',
+  '所持金・服・依頼の進み具合は、この端末に自動で保存されます': 'Cash, outfits and job progress are saved on this device automatically',
   // [gto mobile] タッチのボタンの名前と、場面ごとの操作の案内
   'アクセル': 'Gas',
   'ブレーキ': 'Brake',

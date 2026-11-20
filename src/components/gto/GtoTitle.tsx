@@ -2,6 +2,9 @@
 // ロゴは既存作品のロゴに似せない。書体は市販のフォントを使わず、このファイルで定義した
 // 一筆書きの字形（4×6 の格子に描いた線）を、織りネーム（服のタグ）のように刺繍風に重ねる。
 // 配色は生成り・藍・橙。
+import { useState } from 'react'
+import { yen } from '../../lib/gto/hud'
+import type { SaveSummary } from '../../lib/gto/save'
 import { useI18n } from '../../lib/i18n'
 
 /** 一筆書きの字形。幅 4・高さ 6 の格子（I だけ幅 1） */
@@ -64,20 +67,58 @@ export function GtoLogo({ className }: { className?: string }) {
 }
 
 type Props = {
+  /** 始める（前回の進行があれば、その続きから） */
   onStart: () => void
+  /** 前回の進行を消して、最初から始める */
+  onRestart: () => void
+  /** 前回の進行のあらまし。無ければ null（「はじめる」だけを出す） */
+  resumed: SaveSummary | null
   attribution: string
   touch: boolean
 }
 
-export default function GtoTitle({ onStart, attribution, touch }: Props) {
+export default function GtoTitle({ onStart, onRestart, resumed, attribution, touch }: Props) {
   const { t } = useI18n()
+  // 「はじめから」は進行を消すので、もう一度たしかめてから始める
+  const [confirming, setConfirming] = useState(false)
   return (
     <div className="gto-title">
       <GtoLogo className="gto-logo" />
       <p className="gto-title-lead jp">{t('渋谷を歩き、車を借り、服をいただく。')}</p>
-      <button type="button" className="gto-start jp" onClick={onStart}>
-        {t('はじめる')}
-      </button>
+      {!resumed ? (
+        <button type="button" className="gto-start jp" onClick={onStart}>
+          {t('はじめる')}
+        </button>
+      ) : confirming ? (
+        <div className="gto-restart jp" role="group" aria-label={t('はじめから')}>
+          <p>{t('いまの進行を消して、最初からはじめますか？')}</p>
+          <div className="gto-restart-row">
+            <button type="button" className="gto-start is-sub jp" onClick={onRestart}>
+              {t('消してはじめる')}
+            </button>
+            <button type="button" className="gto-start is-sub jp" onClick={() => setConfirming(false)} autoFocus>
+              {t('やめる')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="gto-resume jp">
+          <div className="gto-restart-row">
+            <button type="button" className="gto-start jp" onClick={onStart}>
+              {t('つづきから')}
+            </button>
+            <button type="button" className="gto-start is-sub jp" onClick={() => setConfirming(true)}>
+              {t('はじめから')}
+            </button>
+          </div>
+          {/* 前回の進行: 所持金・手持ちの服・達成した依頼 */}
+          <p className="gto-resume-note">
+            <span className="mono">{yen(resumed.cash)}</span>
+            <span>{t('服 {count}着', { count: resumed.outfits })}</span>
+            <span>{t('依頼 {done}/{total}', { done: resumed.missions, total: resumed.missionTotal })}</span>
+          </p>
+        </div>
+      )}
       <ul className="gto-help jp">
         {touch ? (
           <>
@@ -90,6 +131,7 @@ export default function GtoTitle({ onStart, attribution, touch }: Props) {
             <li>{t('F 乗る／降りる　E 服をいただく　Shift 走る　Space サイドブレーキ')}</li>
           </>
         )}
+        <li>{t('所持金・服・依頼の進み具合は、この端末に自動で保存されます')}</li>
       </ul>
       <p className="gto-credit">{attribution}</p>
     </div>

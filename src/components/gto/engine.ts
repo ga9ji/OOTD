@@ -13,7 +13,8 @@ import { dirOf } from '../../lib/gto/math'
 import { demoRoad, gapAhead, laneLeftOf } from '../../lib/gto/traffic'
 import type { QualityPreset } from '../../lib/gto/quality'
 import type { Launch } from '../../lib/gto/shot'
-import { createGtoState, stepGto, viewOf, type GtoView } from '../../lib/gto/sim'
+import { applySave, clearSave, hasProgress, loadSave, saveOf, saveSummary, storeSave, type SaveSummary } from '../../lib/gto/save'
+import { createGtoState, START_CASH, stepGto, viewOf, type GtoView } from '../../lib/gto/sim'
 import { titleCamera } from '../../lib/gto/titleCamera'
 import type { GtoState, GtoWorld, SimConfig } from '../../lib/gto/types'
 import { createActorsRenderer } from './renderActors'
@@ -46,8 +47,10 @@ export interface EngineOptions {
 
 export interface GtoEngine {
   world: GtoWorld
-  /** 題名の画面を終えて遊び始める */
-  start: () => void
+  /** 前回の進行を戻して始めたなら、そのあらまし（題名の画面の「つづきから」に出す）。最初からなら null */
+  resumed: SaveSummary | null
+  /** 題名の画面を終えて遊び始める。fresh なら保存した進行を消して、最初から */
+  start: (opts?: { fresh?: boolean }) => void
   /** タッチ操作の現在値を差し替える（GtoTouchControls から呼ぶ） */
   setTouch: (patch: Partial<TouchInput>) => void
   /** 毎フレーム呼ばれる（HUD とミニマップ用）。戻り値で解除 */
@@ -126,7 +129,22 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     createMarkersRenderer(ctx),
   ]
 
-  let state = createGtoState(world, cfg, { seed: launch.seed, mode: launch.mode, start: launch.start, stage: launch.demo?.stage, starterCar: launch.photo == null })
+  const freshState = () => createGtoState(world, cfg, { seed: launch.seed, mode: launch.mode, start: launch.start, stage: launch.demo?.stage, starterCar: launch.photo == null })
+  let state = freshState()
+  // ---- 進行の保存（lib/gto/save.ts）----
+  // 題名の画面から普通に遊ぶときだけ、前回の進行を戻して、変わるたびに端末へ書く。
+  // 撮影用の URL で始めたときは読まないし書かない（同じクエリなら同じ絵にするため。遊んでいる進行も汚さない）
+  const persist = !launch.autostart
+  const loaded = persist ? loadSave() : null
+  const resumed = loaded != null && hasProgress(loaded, START_CASH) ? saveSummary(loaded) : null
+  if (loaded && resumed) state = applySave(state, loaded, cfg.outfitKeys)
+  let kept = { cash: state.cash, outfit: state.outfit, done: state.mission.done }
+  const keepProgress = () => {
+    if (!persist || phase !== 'play') return
+    if (state.cash === kept.cash && state.outfit === kept.outfit && state.mission.done === kept.done) return
+    kept = { cash: state.cash, outfit: state.outfit, done: state.mission.done }
+    storeSave(saveOf(state))
+  }
   let phase: 'title' | 'play' = launch.autostart ? 'play' : 'title'
   let disposed = false
   let raf = 0
@@ -311,6 +329,7 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
       steps++
     }
     if (steps === MAX_STEPS) acc = 0
+    if (steps > 0) keepProgress()
 
     const view = viewOf(state)
     const frame: FrameInfo = { state, view, dt, now, photo: launch.photo != null || phase === 'title' }
@@ -340,7 +359,15 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
 
   return {
     world,
-    start: () => {
+    resumed,
+    start: (opts) => {
+      if (opts?.fresh && persist) {
+        // 最初から: 保存を消して、始めの状態に戻す
+        clearSave()
+        state = freshState()
+        kept = { cash: state.cash, outfit: state.outfit, done: state.mission.done }
+        acc = 0
+      }
       phase = 'play'
     },
     setTouch: (patch) => {

@@ -46,7 +46,7 @@ import {
 export const SPAWN = { x: 26, z: 32, heading: -0.75 }
 /** 捕まったときの罰金 */
 const BUST_FINE = 2000
-const START_CASH = 1000
+export const START_CASH = 1000
 const PLAYER_CAR_COLOR = 0xe2562b
 
 export interface StartOptions {

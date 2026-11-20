@@ -379,14 +379,16 @@
 /* ---------- 題名 ---------- */
 /* 左上の操作列（.gto-chrome、z-index 5）より下に敷く。上に敷くと、題名の画面で
    もどる・音・全画面・共有がこの幕に隠れて押せなくなる */
+/* 縦に並べて中央に寄せる。画面の背が足りないときは、ロゴだけが縮んで 1 画面に収まる（ほかの行は縮めない） */
 .gto-title {
   position: absolute;
   z-index: 4;
   inset: 0;
-  display: grid;
-  align-content: center;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  align-items: center;
+  justify-content: safe center;
   padding: 16px;
   background: linear-gradient(180deg, rgba(18, 23, 43, 0.42), rgba(18, 23, 43, 0.8));
   text-align: center;
@@ -394,8 +396,14 @@
   text-shadow: 0 1px 3px rgba(18, 23, 43, 0.95);
   overflow: auto;
 }
+.gto-title > * {
+  flex: none;
+}
 .gto-logo {
+  flex: 0 1 auto;
   width: min(64%, 400px, 52vh);
+  /* 背が足りないぶんは高さを詰める（絵は縦横比を保ったまま、その中に収まる） */
+  min-height: 56px;
   filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.5));
   transform: rotate(-3deg);
 }
@@ -416,6 +424,47 @@
 }
 .gto-start:hover {
   background: #ff814a;
+}
+/* 前回の進行があるとき: 「つづきから」と「はじめから」を横に並べ、その下に進行のあらまし。
+   「はじめから」を押すと、同じ場所が確かめの文と 2 つのボタンに替わる（高さは変えない） */
+.gto-resume,
+.gto-restart {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.gto-restart-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.gto-resume-note,
+.gto-restart p {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 18px;
+}
+.gto-resume-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  justify-content: center;
+}
+.gto-resume-note span + span::before {
+  margin-right: 6px;
+  content: '・';
+  opacity: 0.6;
+}
+.gto-start.is-sub {
+  padding: 8px 18px;
+  background: var(--gto-ink);
+  color: var(--gto-cloth);
+  font-size: 13px;
+  box-shadow: 0 0 0 1.5px rgba(241, 231, 208, 0.75);
+}
+.gto-start.is-sub:hover {
+  background: #232c52;
 }
 .gto-help {
   display: grid;
@@ -441,6 +490,13 @@
   opacity: 0.65;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
   pointer-events: none;
+}
+
+/* 背の低い横長（スマホを横に持ったとき）: 題名の画面が 1 画面に収まるよう、保存の説明の 1 行を省く */
+@media (max-height: 430px) {
+  .gto-help li:last-child {
+    display: none;
+  }
 }
 
 /* ---------- 狭い画面 ---------- */

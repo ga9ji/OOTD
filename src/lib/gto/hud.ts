@@ -62,7 +62,8 @@ export interface HudCue {
 }
 
 const CUE_LEAVE_SECONDS = 0.45
-const yen = (n: number) => `¥${Math.round(n).toLocaleString('ja-JP')}`
+/** 所持金の書き方（HUD と題名の画面で同じにする） */
+export const yen = (n: number) => `¥${Math.round(n).toLocaleString('ja-JP')}`
 
 export function hudCue(cue: HudCueInput | null | undefined): HudCue | null {
   if (!cue) return null

@@ -51,10 +51,11 @@
 }
 
 /* ---------- 奪った瞬間のお知らせ: 奪った服の値札が右から飛び込む ---------- */
+/* 右下の計器（操作の案内と、向かう先までの距離の 2 段で約 60px）のすぐ上に置く */
 .gtw-toast {
   position: absolute;
   right: var(--gto-right);
-  bottom: calc(var(--gto-bottom) + 44px);
+  bottom: calc(var(--gto-bottom) + 68px);
   display: flex;
   gap: 12px;
   align-items: center;
@@ -63,11 +64,14 @@
 .gtw-toast.is-leaving {
   animation: gtw-toast-out 0.32s ease-in both;
 }
+/* スマホ: 右上の状態の塊（時計・所持金・手配度・服の値札）のすぐ下に、右寄せで出す。
+   その下には、縦持ちなら目的の札、横持ちなら右の操作ボタンが来るので、あいだに収まる背丈にする（大きさは下の「スマホの大きさ」） */
 .gtw.is-touch .gtw-toast {
-  top: calc(max(8px, env(safe-area-inset-top, 0px)) + 124px);
+  top: calc(max(8px, env(safe-area-inset-top, 0px)) + 82px);
   right: max(10px, env(safe-area-inset-right, 0px));
   bottom: auto;
   flex-direction: row-reverse;
+  gap: 8px;
 }
 .gtw-toast-burst {
   position: absolute;
@@ -151,20 +155,69 @@
   -webkit-text-stroke: 0;
   text-shadow: none;
 }
+/* スマホの大きさ。縦持ちは、状態の塊の下から目的の札の上まで（約 95px）に収める */
 .gtw.is-touch .gtw-toast-text {
   justify-items: start;
 }
+.gtw.is-touch .gtw-toast-text b {
+  font-size: 24px;
+}
 .gtw.is-touch .gtw-toast-tag {
-  width: 60px;
+  width: 52px;
+  padding: 14px 5px 5px;
+}
+.gtw.is-touch .gtw-toast-tag::after {
+  inset: 14px 3px 3px;
 }
 .gtw.is-touch .gtw-toast-tag img {
-  height: 78px;
+  height: 62px;
 }
 .gtw.is-touch .gtw-toast-burst {
-  right: 30px;
-  width: 150px;
-  height: 150px;
-  margin: -75px -75px 0 0;
+  right: 26px;
+  width: 130px;
+  height: 130px;
+  margin: -65px -65px 0 0;
+}
+/* 横持ちは、すぐ下が右の操作ボタン。状態の塊とボタンのあいだ（約 55px）に収まるよう、さらに小さくする */
+@media (orientation: landscape) {
+  .gtw.is-touch .gtw-toast {
+    top: calc(max(8px, env(safe-area-inset-top, 0px)) + 72px);
+    gap: 6px;
+  }
+  .gtw.is-touch .gtw-toast-text {
+    gap: 0;
+    -webkit-text-stroke-width: 3px;
+  }
+  .gtw.is-touch .gtw-toast-text b {
+    font-size: 19px;
+  }
+  .gtw.is-touch .gtw-toast-text span {
+    font-size: 11.5px;
+  }
+  .gtw.is-touch .gtw-toast-tag {
+    width: 36px;
+    padding: 11px 3px 3px;
+    transform: rotate(3deg);
+    animation-name: gtw-swing-small;
+  }
+  .gtw.is-touch .gtw-toast-tag::before {
+    top: 3px;
+    width: 6px;
+    height: 6px;
+    margin-left: -3px;
+  }
+  .gtw.is-touch .gtw-toast-tag::after {
+    inset: 11px 2px 2px;
+  }
+  .gtw.is-touch .gtw-toast-tag img {
+    height: 36px;
+  }
+  .gtw.is-touch .gtw-toast-burst {
+    right: 18px;
+    width: 90px;
+    height: 90px;
+    margin: -45px -45px 0 0;
+  }
 }
 
 /* ---------- 着替え画面 ---------- */
@@ -449,6 +502,21 @@
   }
   100% {
     transform: rotate(5deg);
+  }
+}
+/* 横持ちのスマホ用: 振れ幅を小さくして、下の操作ボタンにかからないようにする */
+@keyframes gtw-swing-small {
+  0% {
+    transform: rotate(-9deg);
+  }
+  35% {
+    transform: rotate(7deg);
+  }
+  65% {
+    transform: rotate(-1deg);
+  }
+  100% {
+    transform: rotate(3deg);
   }
 }
 @keyframes gtw-hang {

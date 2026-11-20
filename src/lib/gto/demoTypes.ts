@@ -1,12 +1,12 @@
 // Grand Theft Outfit: 撮影用デモの型（demo.ts の表と demoInput が使う）。
 // 入口: DemoSegment / DemoPress / DemoStage / DemoScenario / DemoView（demo.ts からも再 export される）
-import type { InputFrame, PlayMode } from './types'
+import type { CheatId, InputFrame, PlayMode } from './types'
 
 /** t0〜t1 秒のあいだ、この入力を重ねる */
 export interface DemoSegment {
   t0: number
   t1: number
-  input: Partial<Omit<InputFrame, 'enter' | 'steal'>>
+  input: Partial<Omit<InputFrame, 'enter' | 'steal' | 'cheat'>>
   /** true なら、進行中のミッションの目的地（無ければ開始地点）へ向かうようカメラを回す */
   seekGoal?: boolean
   /** true なら、車でいまいる車道に沿ってハンドルを切る（左側通行。input.moveX は上書きされる） */
@@ -19,10 +19,11 @@ export interface DemoSegment {
   cruise?: number
 }
 
-/** at 秒に1回だけボタンを押す */
+/** at 秒に1回だけボタンを押す。[cheats] cheat があれば、ボタンの代わりにその裏コードを打つ */
 export interface DemoPress {
   at: number
-  press: 'enter' | 'steal'
+  press: 'enter' | 'steal' | 'cheat'
+  cheat?: CheatId
 }
 
 /** 始める前の段取り。sim.ts の createGtoState がこの通りに世界を用意する */

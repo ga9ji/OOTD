@@ -107,6 +107,9 @@ export const ENGINE_VOICE: Record<VehicleKind, { cyl: 3 | 4; pitch: number; clat
   taxi: { cyl: 4, pitch: 0.94, clatter: 0.15 },
   van: { cyl: 4, pitch: 0.82, clatter: 0.6 },
   police: { cyl: 4, pitch: 1.05, clatter: 0 },
+  // [cheats] 戦車は低くがらがら、飛行機は高めに唸る
+  tank: { cyl: 4, pitch: 0.6, clatter: 1 },
+  plane: { cyl: 4, pitch: 1.3, clatter: 0.25 },
 }
 
 // ----------------------------------------------------------------------------
@@ -345,7 +348,7 @@ function scanSlow(world: GtoWorld, l: Listener, at: number): SlowScan {
   return { at, railDist: Math.min(best, 999), railPan: locate(l, bx, bz).pan, signalDist: Math.min(signalDist, 999) }
 }
 
-const PLAYER_EVENTS: ReadonlySet<GtoEventType> = new Set<GtoEventType>(['enter', 'exit', 'steal', 'wantedUp', 'wantedClear', 'busted', 'missionStart', 'missionStep', 'missionDone', 'missionFail'])
+const PLAYER_EVENTS: ReadonlySet<GtoEventType> = new Set<GtoEventType>(['enter', 'exit', 'steal', 'wantedUp', 'wantedClear', 'busted', 'missionStart', 'missionStep', 'missionDone', 'missionFail', 'cheat'])
 
 /** タイヤが鳴く度合い（横滑り・ブレーキのロック・発進の空転） */
 export function skidAmount(speed: number, slip: number, accel: number, load: number): number {

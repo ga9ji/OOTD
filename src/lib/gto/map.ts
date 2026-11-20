@@ -198,6 +198,15 @@ export function createWorld(map: ShibuyaMap): GtoWorld {
   })
 
   const insideBuilding = (x: number, z: number) => hitBuilding(grid, x, z) >= 0
+  // [cheats] 屋根の高さ: 当たり判定のある建物（insideBuilding と同じ集まり）のうち、その点を含むいちばん高い屋根
+  const roofY = (x: number, z: number) => {
+    let top = -Infinity
+    for (const i of grid.get(cellKey(Math.floor(x / BUILDING_CELL), Math.floor(z / BUILDING_CELL))) ?? []) {
+      const b = buildings[i]
+      if (b.y + b.h > top && pointInPolygon(b.pts, x, z)) top = b.y + b.h
+    }
+    return top
+  }
 
   const resolveCircle = (x0: number, z0: number, r: number): CircleHit => {
     let x = clamp(x0, bounds.minX + r, bounds.maxX - r)
@@ -316,6 +325,7 @@ export function createWorld(map: ShibuyaMap): GtoWorld {
     groundY,
     passUnder,
     insideBuilding,
+    roofY,
     resolveCircle,
     segmentClear,
     nearestRoad,

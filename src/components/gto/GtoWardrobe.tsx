@@ -143,7 +143,8 @@ export default function GtoWardrobe({ engine, spriteUrl, touch }: Props) {
       if (e.metaKey || e.ctrlKey || e.altKey) return
       if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return
       if (!open) {
-        if ((e.code === 'KeyQ' || e.code === 'Tab') && onFoot && outfit) {
+        // [cheats] スマホ（GtoPhone）が開いているあいだは開かない
+        if ((e.code === 'KeyQ' || e.code === 'Tab') && onFoot && outfit && !document.querySelector('.gtp-screen')) {
           e.preventDefault()
           e.stopImmediatePropagation()
           openWardrobe()

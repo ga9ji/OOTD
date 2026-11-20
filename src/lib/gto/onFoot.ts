@@ -5,7 +5,7 @@
 //       乗り降りは一瞬では終わらない。段階（Boarding）を1歩ずつ進め、描画は boardingPose を読んで
 //       ドアの開き具合と主人公の位置を決める。sim.ts は stepBoarding の結果を状態へ写すだけ。
 import { angleDiff, approach, clamp, dirOf, dist2, headingOf, lerp } from './math'
-import { VEHICLE_SPECS } from './vehicle'
+import { isSpecial, VEHICLE_SPECS } from './vehicle'
 import type { Boarding, GtoEvent, GtoWorld, InputFrame, PlayMode, PlayerState, VehicleKind, VehicleState } from './types'
 
 /** 手触りを決める数字 */
@@ -110,6 +110,9 @@ export const DOOR_FRAME: Record<VehicleKind, { hinge: number; rear: number }> = 
   taxi: { hinge: -0.25, rear: 0.06 },
   van: { hinge: -0.4, rear: -0.1 },
   police: { hinge: -0.18, rear: 0.07 },
+  // [cheats] 戦車と飛行機にドアは無い。降りて立つ場所（車体の横）を決めるためだけに置く
+  tank: { hinge: -0.1, rear: 0.05 },
+  plane: { hinge: -0.12, rear: 0.03 },
 }
 
 /**
@@ -278,12 +281,14 @@ export function stepOnFoot(
 export function findEnterable(p: PlayerState, vehicles: VehicleState[]): VehicleState | null {
   if (p.boarding != null) return null
   let best: VehicleState | null = null
-  let bestD2 = FOOT_TUNING.enterRange * FOOT_TUNING.enterRange
+  let bestGap = FOOT_TUNING.enterRange
   for (const v of vehicles) {
     if (v.driver === 'player') continue
-    const d2 = dist2(p.x, p.z, v.x, v.z)
-    if (d2 < bestD2) {
-      bestD2 = d2
+    // [cheats] 戦車と飛行機は大きいので、中心ではなく車体の縁からの距離で見る。飛んでいる飛行機には乗れない
+    if ((v.alt ?? 0) > 0) continue
+    const gap = isSpecial(v.kind) ? hullGap(p, v) : Math.sqrt(dist2(p.x, p.z, v.x, v.z))
+    if (gap < bestGap) {
+      bestGap = gap
       best = v
     }
   }
@@ -534,10 +539,46 @@ export function stepBoarding(
   }
 }
 
+/** [cheats] 主人公から、車体の長方形の縁までの距離 m（中にいれば 0） */
+function hullGap(p: { x: number; z: number }, v: VehicleState): number {
+  const spec = VEHICLE_SPECS[v.kind]
+  const f = dirOf(v.heading)
+  const fw = (p.x - v.x) * f.x + (p.z - v.z) * f.z
+  const out = (p.x - v.x) * -f.z + (p.z - v.z) * f.x
+  return Math.hypot(Math.max(0, Math.abs(fw) - spec.length / 2), Math.max(0, Math.abs(out) - spec.width / 2))
+}
+/** [cheats] 戦車と飛行機から降りられる速さの上限 m/s（ドアの演技が無く、その場で降りるので、ほぼ止まっているときだけ） */
+const SPECIAL_EXIT_SPEED = 2
+
+/**
+ * [cheats] 戦車と飛行機の乗り降り。ドアの演技は省いて、その 1 歩で入れ替わる。
+ * 降りる: ほぼ止まっていて、飛行機なら接地しているときだけ。車体の横（塞がっていれば反対側・後ろ）に立つ
+ * 乗る: そのまま運転席へ
+ */
+function beginSpecial(p: PlayerState, mode: PlayMode, vehicles: VehicleState[], sizeOf: (v: VehicleState) => CarSize, world: GtoWorld, mine: VehicleState | undefined, target: VehicleState | null): BoardingStep {
+  const same: BoardingStep = { player: p, mode, vehicles, events: [], ejected: null }
+  if (mine) {
+    if (Math.abs(mine.speed) >= SPECIAL_EXIT_SPEED || (mine.alt ?? 0) > 0) return same
+    const side = pickSide(mine, sizeOf(mine), 1, world, vehicles, sizeOf)
+    const d = doorPoint(mine, sizeOf(mine), side)
+    const at = world.resolveCircle(d.x, d.z, FOOT_TUNING.radius)
+    return {
+      ...same,
+      mode: 'foot',
+      vehicles: swap(vehicles, { ...pinned(mine), driver: 'none' }),
+      player: { ...p, x: at.x, y: world.groundY(at.x, at.z), z: at.z, heading: mine.heading, speed: 0, running: false, vehicleId: null, busy: 0, boarding: null, leftCar: null },
+      events: [{ type: 'exit', x: at.x, z: at.z }],
+    }
+  }
+  if (!target) return same
+  return takeSeat(p, null, target, vehicles)
+}
+
 /** ボタンが押された1歩: 降り始めるか、乗る相手を決めてドアへ向かう */
 function begin(p: PlayerState, mode: PlayMode, vehicles: VehicleState[], sizeOf: (v: VehicleState) => CarSize, world: GtoWorld): BoardingStep {
   const same: BoardingStep = { player: p, mode, vehicles, events: [], ejected: null }
   const mine = vehicles.find((v) => v.id === p.vehicleId)
+  if (mine && isSpecial(mine.kind)) return beginSpecial(p, mode, vehicles, sizeOf, world, mine, null)
   if (mine) {
     if (Math.abs(mine.speed) >= BOARD_TUNING.exitSpeed) return same
     const side = pickSide(mine, sizeOf(mine), 1, world, vehicles, sizeOf)
@@ -545,6 +586,7 @@ function begin(p: PlayerState, mode: PlayMode, vehicles: VehicleState[], sizeOf:
   }
   const target = findEnterable(p, vehicles)
   if (!target) return same
+  if (isSpecial(target.kind)) return beginSpecial(p, mode, vehicles, sizeOf, world, undefined, target)
   const jack = target.driver === 'traffic' || target.driver === 'police'
   const side = pickSide(target, sizeOf(target), sideOf(p, target), world, vehicles, sizeOf)
   return {
@@ -608,7 +650,7 @@ function approachDoor(
 }
 
 /** 座り始める: ここで運転手になり、カメラは運転の構えへ移り始める（発進はドアが閉まってから） */
-function takeSeat(p: PlayerState, boarding: Boarding, v: VehicleState, vehicles: VehicleState[]): BoardingStep {
+function takeSeat(p: PlayerState, boarding: Boarding | null, v: VehicleState, vehicles: VehicleState[]): BoardingStep {
   const car: VehicleState = { ...pinned(v), driver: 'player', route: null }
   return {
     player: { ...p, x: car.x, y: car.y, z: car.z, heading: car.heading, speed: 0, running: false, vehicleId: car.id, busy: 0, boarding },
@@ -629,7 +671,13 @@ export interface CameraSubject {
   mode: PlayMode
   /** 乗り降りの段（camera.ts の CameraStage と同じ形）。あるあいだ、カメラは車の斜め後ろ外側に留まる */
   stage?: { x: number; y: number; z: number; heading: number; width: number; side: Boarding['side']; k: number }
+  /** [cheats] camera.ts の CameraTarget と同じ: 大きな乗り物の引きの倍率と、空を飛んでいるか */
+  reach?: number
+  air?: boolean
 }
+
+/** [cheats] 戦車と飛行機を撮るときの、引きの倍率（ふだんの車の距離に対して） */
+const SPECIAL_CAMERA: Partial<Record<VehicleKind, number>> = { tank: 1.55, plane: 1.8 }
 
 /** 乗り込みの途中で走り出した車は、速さに沿って段を抜く（1 = 停まっている、0 = もう走っている） */
 const rolling = (v: VehicleState): number => 1 - smooth((Math.abs(v.speed) - BOARD_TUNING.shutHoldSpeed) / BOARD_TUNING.stageRollOff)
@@ -670,7 +718,11 @@ export function stageAmount(p: PlayerState, v: VehicleState, size: CarSize): num
  * 1 画面に入る（camera.ts の STAGE_TUNING）。相手の点そのものは動かさないので、段が抜ければふだんの背後カメラへ戻る
  */
 export function cameraSubject(p: PlayerState, mode: PlayMode, vehicles: VehicleState[]): CameraSubject {
-  const own: CameraSubject = { x: p.x, y: p.y, z: p.z, heading: p.heading, speed: p.speed, mode }
+  const riding = mode === 'drive' ? vehicles.find((o) => o.id === p.vehicleId) : undefined
+  const reach = riding ? SPECIAL_CAMERA[riding.kind] : undefined
+  // 飛んでいるあいだは、乗り物の高さを追う（地上では主人公の y のまま）
+  const air = riding != null && (riding.alt ?? 0) > 0
+  const own: CameraSubject = { x: p.x, y: air && riding ? riding.y : p.y, z: p.z, heading: p.heading, speed: p.speed, mode, ...(reach ? { reach } : {}), ...(air ? { air } : {}) }
   const id = p.boarding?.vehicleId ?? p.leftCar?.vehicleId
   const v = id == null ? undefined : vehicles.find((o) => o.id === id)
   if (!v) return own

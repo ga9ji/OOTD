@@ -13,13 +13,16 @@ import { dirOf } from '../../lib/gto/math'
 import { demoRoad, gapAhead, laneLeftOf } from '../../lib/gto/traffic'
 import type { QualityPreset } from '../../lib/gto/quality'
 import type { Launch } from '../../lib/gto/shot'
-import { createGtoState, stepGto, viewOf, type GtoView } from '../../lib/gto/sim'
-import type { GtoState, GtoWorld, SimConfig } from '../../lib/gto/types'
+import { applySave, clearSave, hasProgress, loadSave, saveOf, saveSummary, storeSave, type SaveSummary } from '../../lib/gto/save'
+import { createGtoState, START_CASH, stepGto, viewOf, type GtoView } from '../../lib/gto/sim'
+import { titleCamera } from '../../lib/gto/titleCamera'
+import type { CheatId, GtoState, GtoWorld, SimConfig } from '../../lib/gto/types'
 import { createActorsRenderer } from './renderActors'
 import { createCityRenderer } from './renderCity'
 import { createMarkersRenderer } from './renderMarkers'
 import { createSignsRenderer } from './renderSigns'
 import { createSkyRenderer } from './renderSky'
+import { createSpecialsRenderer } from './renderSpecials'
 import type { FrameInfo, RenderCtx, RenderPart } from './renderTypes'
 import { createVehiclesRenderer } from './renderVehicles'
 
@@ -45,8 +48,10 @@ export interface EngineOptions {
 
 export interface GtoEngine {
   world: GtoWorld
-  /** 題名の画面を終えて遊び始める */
-  start: () => void
+  /** 前回の進行を戻して始めたなら、そのあらまし（題名の画面の「つづきから」に出す）。最初からなら null */
+  resumed: SaveSummary | null
+  /** 題名の画面を終えて遊び始める。fresh なら保存した進行を消して、最初から */
+  start: (opts?: { fresh?: boolean }) => void
   /** タッチ操作の現在値を差し替える（GtoTouchControls から呼ぶ） */
   setTouch: (patch: Partial<TouchInput>) => void
   /** 毎フレーム呼ばれる（HUD とミニマップ用）。戻り値で解除 */
@@ -55,6 +60,8 @@ export interface GtoEngine {
   setPaused: (paused: boolean) => void
   /** [outfit] 次の1歩で、ワードローブのこの服に着替える */
   wear: (key: string) => void
+  /** [cheats] 次の1歩で、スマホで通じた裏コードを効かせる */
+  cheat: (id: CheatId) => void
   dispose: () => void
 }
 
@@ -121,11 +128,27 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     createCityRenderer(ctx),
     createSignsRenderer(ctx),
     createVehiclesRenderer(ctx),
+    createSpecialsRenderer(ctx),
     createActorsRenderer(ctx),
     createMarkersRenderer(ctx),
   ]
 
-  let state = createGtoState(world, cfg, { seed: launch.seed, mode: launch.mode, start: launch.start, stage: launch.demo?.stage, starterCar: launch.photo == null })
+  const freshState = () => createGtoState(world, cfg, { seed: launch.seed, mode: launch.mode, start: launch.start, stage: launch.demo?.stage, starterCar: launch.photo == null })
+  let state = freshState()
+  // ---- 進行の保存（lib/gto/save.ts）----
+  // 題名の画面から普通に遊ぶときだけ、前回の進行を戻して、変わるたびに端末へ書く。
+  // 撮影用の URL で始めたときは読まないし書かない（同じクエリなら同じ絵にするため。遊んでいる進行も汚さない）
+  const persist = !launch.autostart
+  const loaded = persist ? loadSave() : null
+  const resumed = loaded != null && hasProgress(loaded, START_CASH) ? saveSummary(loaded) : null
+  if (loaded && resumed) state = applySave(state, loaded, cfg.outfitKeys)
+  let kept = { cash: state.cash, outfit: state.outfit, done: state.mission.done }
+  const keepProgress = () => {
+    if (!persist || phase !== 'play') return
+    if (state.cash === kept.cash && state.outfit === kept.outfit && state.mission.done === kept.done) return
+    kept = { cash: state.cash, outfit: state.outfit, done: state.mission.done }
+    storeSave(saveOf(state))
+  }
   let phase: 'title' | 'play' = launch.autostart ? 'play' : 'title'
   let disposed = false
   let raf = 0
@@ -145,6 +168,8 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
   // [outfit] 着替え画面: 時間を止める旗と、次の1歩で着替える服
   let paused = false
   let wearNext: string | null = null
+  // [cheats] スマホで通じた裏コード（次の1歩で効かせる）
+  let cheatNext: CheatId | null = null
   let padButtons: readonly boolean[] = []
   const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'])
   const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)
@@ -225,11 +250,11 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
   const lookTarget = new THREE.Vector3()
   const placeCamera = () => {
     if (phase === 'title') {
-      // 題名の画面では、交差点の上をゆっくり回る
-      const a = now * 0.05 + 0.6
-      camera.position.set(Math.sin(a) * 150, 78, Math.cos(a) * 150)
-      camera.fov = 50
-      camera.lookAt(0, 14, 0)
+      // 題名の画面では、交差点を見下ろす弧の上をゆっくり往復する（建物とクレーンを避けた弧。lib/gto/titleCamera.ts）
+      const c = titleCamera(now)
+      camera.position.set(c.x, c.y, c.z)
+      camera.fov = c.fov
+      camera.lookAt(c.tx, c.ty, c.tz)
     } else if (launch.photo) {
       const p = launch.photo
       const d = dirOf(p.heading)
@@ -303,13 +328,15 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     if (paused) acc = 0
     while (acc >= STEP && steps < MAX_STEPS) {
       const stepInput = nextInput()
-      state = stepGto(state, wearNext ? { ...stepInput, wear: wearNext } : stepInput, world, cfg, STEP)
+      state = stepGto(state, wearNext || cheatNext ? { ...stepInput, ...(wearNext ? { wear: wearNext } : {}), ...(cheatNext ? { cheat: cheatNext } : {}) } : stepInput, world, cfg, STEP)
       wearNext = null
+      cheatNext = null
       for (const e of state.events) audio.event(e)
       acc -= STEP
       steps++
     }
     if (steps === MAX_STEPS) acc = 0
+    if (steps > 0) keepProgress()
 
     const view = viewOf(state)
     const frame: FrameInfo = { state, view, dt, now, photo: launch.photo != null || phase === 'title' }
@@ -339,7 +366,15 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
 
   return {
     world,
-    start: () => {
+    resumed,
+    start: (opts) => {
+      if (opts?.fresh && persist) {
+        // 最初から: 保存を消して、始めの状態に戻す
+        clearSave()
+        state = freshState()
+        kept = { cash: state.cash, outfit: state.outfit, done: state.mission.done }
+        acc = 0
+      }
       phase = 'play'
     },
     setTouch: (patch) => {
@@ -358,6 +393,9 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     },
     wear: (key) => {
       wearNext = key
+    },
+    cheat: (id) => {
+      cheatNext = id
     },
     dispose: () => {
       disposed = true

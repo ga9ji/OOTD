@@ -15,7 +15,8 @@ export { officerDone, OFFICER_TUNING, officersWanted, spawnOfficer, stepOfficer,
 /** 手触りを決める数字 */
 export const WANTED_TUNING = {
   /** 悪さごとの加点 */
-  heat: { carjack: 30, steal: 18, hitPed: 26, crash: 3 } as Partial<Record<GtoEvent['type'], number>>,
+  // [cheats] blast は戦車の砲の着弾（街なかで撃てば、1 発で手配度 2 まで上がる）
+  heat: { carjack: 30, steal: 18, hitPed: 26, crash: 3, blast: 48 } as Partial<Record<GtoEvent['type'], number>>,
   /** 警察車両にぶつけた・警官をはねたときの加点 */
   ramPolice: 22,
   /** 自分がこの速さ以上で動いているときだけ「ぶつけた」と数える（警察に当てられたぶんは数えない） */

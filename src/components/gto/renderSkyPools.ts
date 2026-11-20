@@ -225,6 +225,8 @@ export function createLightPools(ctx: RenderCtx, fogNear: number, fogFar: number
       if (!tailOn) return
       let count = 0
       for (const v of frame.state.vehicles) {
+        // [cheats] 飛んでいる飛行機は、路面に灯りを落とさない
+        if ((v.alt ?? 0) > 1) continue
         if (count >= TAIL_CAPACITY) break
         const pool = tailPoolOf(v)
         if (!pool) continue

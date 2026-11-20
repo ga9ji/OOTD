@@ -6,9 +6,9 @@
 //       塗装色の板と窓がヒンジ（フロントガラスの付け根の柱）を軸に外へ開き、車体の側面には暗い開口（車内）が見える。
 //       寸法は lib/gto/vehicleCabin.ts（車種の断面から出したドアの枠と座席）。使われるまで何も作らない。
 import * as THREE from 'three'
-import { VEHICLE_SPECS } from '../../lib/gto/vehicle'
+import { isCar, VEHICLE_SPECS } from '../../lib/gto/vehicle'
 import { cabinLayout, doorSwing, type CabinLayout } from '../../lib/gto/vehicleCabin'
-import type { VehicleKind } from '../../lib/gto/types'
+import type { CarKind, VehicleKind } from '../../lib/gto/types'
 import { VEHICLE_LOOK } from './vehicleShape'
 
 // ---- ほかの部品（乗り降りの見た目）との受け渡し ----
@@ -55,10 +55,12 @@ export function vehicleSeatPoint(vehicleId: number, side: DoorSide, which: 'seat
   return doors ? doors.point(side, which, out) : null
 }
 
-const layouts = new Map<VehicleKind, CabinLayout>()
+const layouts = new Map<CarKind, CabinLayout>()
 
 /** 車種ごとのドアの枠と座席の位置（車体の座標: 前が −z、右が ＋x、路面が y=0。x は中心からの距離） */
-export function vehicleCabin(kind: VehicleKind): CabinLayout {
+export function vehicleCabin(of: VehicleKind): CabinLayout {
+  // [cheats] 戦車と飛行機には車室が無い（ドアの演技をせず、運転中の体も描かない）。聞かれたらセダンの寸法を返す
+  const kind: CarKind = isCar(of) ? of : 'sedan'
   const found = layouts.get(kind)
   if (found) return found
   const made = cabinLayout(VEHICLE_SPECS[kind], VEHICLE_LOOK[kind])
@@ -92,7 +94,7 @@ export interface CarDoors {
 }
 
 export interface DoorKit {
-  attach: (chassis: THREE.Group, kind: VehicleKind, paint: THREE.Material) => CarDoors
+  attach: (chassis: THREE.Group, kind: CarKind, paint: THREE.Material) => CarDoors
   dispose: () => void
 }
 
@@ -109,7 +111,7 @@ export function createDoorKit(shadows: boolean): DoorKit {
   const glassMaterial = new THREE.MeshLambertMaterial({ color: look.glass, transparent: true, opacity: look.glassOpacity })
   const cabinMaterial = new THREE.MeshBasicMaterial({ color: look.cabin })
 
-  const attach = (chassis: THREE.Group, kind: VehicleKind, paint: THREE.Material): CarDoors => {
+  const attach = (chassis: THREE.Group, kind: CarKind, paint: THREE.Material): CarDoors => {
     const layout = vehicleCabin(kind)
     const d = layout.door
     // chassis の原点は車輪の中心の高さ。車体の座標（路面が 0）からその分だけ下げる

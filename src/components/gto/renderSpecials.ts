@@ -6,7 +6,10 @@
 //       戦車: 車体・履帯・砲塔・砲身。履帯の転輪は走った距離で回る。坂では前後の地面の高さに合わせて傾く。
 //       飛行機: 胴体・主翼・尾翼・プロペラ・脚。上下の速さで機首を上げ下げし、旋回で翼を傾ける。プロペラは速さに合わせて回る。
 //       影は真下の地面に落とす（飛行機は高く上がるほど大きく薄くなる）。
+//       戦車の砲（lib/gto/cannon.ts）: 撃った時刻（VehicleState.shotAt.t）が変わったら、砲口の閃光・弾の筋・着弾の火の玉と煙を出し、
+//       車体を反動で揺らす。出来事（events）ではなく状態を見るので、1 コマで何歩進んでも撃った分を取りこぼさない。
 import * as THREE from 'three'
+import { CANNON_TUNING, muzzleOf } from '../../lib/gto/cannon'
 import { clamp, dirOf } from '../../lib/gto/math'
 import type { SpecialKind, VehicleState } from '../../lib/gto/types'
 import { isSpecial, VEHICLE_SPECS } from '../../lib/gto/vehicle'
@@ -39,6 +42,33 @@ export const SPECIAL_STYLE = {
   /** 影の濃さと、飛行機の影が消えきる高さ m */
   shadowAlpha: 0.5,
   shadowFade: 90,
+  /** 砲: 閃光・弾の筋・火の玉・煙の色と、出ている秒 */
+  flash: 0xfff2c9,
+  fire: 0xff8a3a,
+  smoke: 0x2c2d33,
+  flashLife: 0.13,
+  tracerLife: 0.12,
+  fireLife: 0.5,
+  smokeLife: 1.5,
+  /** 撃った反動で車体が後ろへ反る角度（ラジアン）と、戻る速さ（1/s） */
+  recoilPitch: 0.085,
+  recoilEase: 7,
+}
+
+/** 砲の演出 1 つ（閃光・弾の筋・火の玉・煙） */
+interface Puff {
+  mesh: THREE.Mesh
+  material: THREE.MeshBasicMaterial
+  age: number
+  life: number
+  /** 大きさ（始まりと終わり。筋は太さ） */
+  from: number
+  to: number
+  /** 濃さ（始まり）と、1 秒に上がる高さ m */
+  alpha: number
+  rise: number
+  /** 弾の筋は長さを保つ */
+  length?: number
 }
 
 interface Special {
@@ -54,6 +84,9 @@ interface Special {
   pitch: number
   roll: number
   spin: number
+  /** 砲: 最後に演出を出した発砲の時刻と、残っている反動（1 → 0） */
+  shotT: number
+  kick: number
 }
 
 /** 色を少し暗く・明るくする */
@@ -194,7 +227,60 @@ export function createSpecialsRenderer(ctx: RenderCtx): RenderPart {
     shadow.scale.set(span, 1, spec.length * 1.2)
     group.add(shadow)
     group.add(root)
-    return { kind, root, body, shadow, spinners, paint, pitch: 0, roll: 0, spin: 0 }
+    // 出したときにもう撃ったあとなら、その分の演出は出さない
+    return { kind, root, body, shadow, spinners, paint, pitch: 0, roll: 0, spin: 0, shotT: v.shotAt?.t ?? -1, kick: 0 }
+  }
+
+  // ---- 砲の演出: 丸と筋を、足して描く（煙だけはふつうに重ねる）。寿命が来たら消す ----
+  const ball = new THREE.SphereGeometry(0.5, 12, 8)
+  const puffs: Puff[] = []
+  const puff = (geometry: THREE.BufferGeometry, color: number, additive: boolean, at: THREE.Vector3, opts: Omit<Puff, 'mesh' | 'material' | 'age'>): Puff => {
+    const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: opts.alpha, depthWrite: false, fog: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending })
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.copy(at)
+    mesh.renderOrder = 4
+    group.add(mesh)
+    const made = { mesh, material, age: 0, ...opts }
+    puffs.push(made)
+    return made
+  }
+  const point = new THREE.Vector3()
+  const fireShot = (v: VehicleState, to: { x: number; z: number }) => {
+    const C = CANNON_TUNING
+    const m = muzzleOf(v)
+    const muzzleY = world.groundY(v.x, v.z) + C.muzzleUp
+    const hitY = world.groundY(to.x, to.z) + 1.1
+    // 砲口の閃光
+    puff(ball, S.flash, true, point.set(m.x, muzzleY, m.z), { life: S.flashLife, from: 0.8, to: 3, alpha: 0.95, rise: 0 })
+    // 弾の筋（砲口から着いた場所まで）
+    const length = Math.hypot(to.x - m.x, to.z - m.z, hitY - muzzleY)
+    if (length > 1) {
+      const tracer = puff(box, S.flash, true, point.set((m.x + to.x) / 2, (muzzleY + hitY) / 2, (m.z + to.z) / 2), { life: S.tracerLife, from: 0.16, to: 0.04, alpha: 0.8, rise: 0, length })
+      tracer.mesh.lookAt(to.x, hitY, to.z)
+    }
+    // 着いた場所: 火の玉と、遅れて広がりながら上がる煙
+    puff(ball, S.fire, true, point.set(to.x, hitY, to.z), { life: S.fireLife, from: 1.6, to: C.blast * 1.5, alpha: 0.9, rise: 2 })
+    puff(ball, S.flash, true, point.set(to.x, hitY, to.z), { life: S.flashLife * 1.6, from: 1, to: C.blast, alpha: 0.9, rise: 0 })
+    puff(ball, S.smoke, false, point.set(to.x, hitY + 0.5, to.z), { life: S.smokeLife, from: 2.5, to: C.blast * 1.3, alpha: 0.6, rise: 3.2 })
+  }
+  const stepPuffs = (dt: number) => {
+    for (let i = puffs.length - 1; i >= 0; i--) {
+      const p = puffs[i]
+      p.age += dt
+      const k = clamp(p.age / p.life, 0, 1)
+      if (k >= 1) {
+        group.remove(p.mesh)
+        p.material.dispose()
+        puffs.splice(i, 1)
+        continue
+      }
+      // 広がりは始めが速く、濃さは終わりへ向けて消える
+      const grow = p.from + (p.to - p.from) * (1 - (1 - k) * (1 - k))
+      if (p.length != null) p.mesh.scale.set(grow, grow, p.length)
+      else p.mesh.scale.setScalar(grow)
+      p.mesh.position.y += p.rise * dt
+      p.material.opacity = p.alpha * (1 - k) * (1 - k)
+    }
   }
 
   const remove = (s: Special) => {
@@ -218,9 +304,16 @@ export function createSpecialsRenderer(ctx: RenderCtx): RenderPart {
     const wantRoll = s.kind === 'plane' ? clamp(-v.yawRate * S.bankPerYaw, -S.bankMax, S.bankMax) * (1 - grounded) : 0
     s.pitch += (wantPitch - s.pitch) * k
     s.roll += (wantRoll - s.roll) * k
+    // 砲: 新しく撃っていたら演出を出して、車体を反らせる
+    if (v.shotAt && v.shotAt.t !== s.shotT) {
+      s.shotT = v.shotAt.t
+      s.kick = 1
+      fireShot(v, v.shotAt)
+    }
+    s.kick *= Math.exp(-S.recoilEase * dt)
     s.root.position.set(v.x, ground + alt, v.z)
     s.root.rotation.y = -v.heading
-    s.body.rotation.x = s.pitch
+    s.body.rotation.x = s.pitch + s.kick * S.recoilPitch
     s.body.rotation.z = s.roll
     // 回る部品
     if (s.kind === 'tank') {
@@ -263,10 +356,14 @@ export function createSpecialsRenderer(ctx: RenderCtx): RenderPart {
         remove(s)
         specials.delete(id)
       }
+      stepPuffs(Math.min(0.05, frame.dt))
     },
     dispose: () => {
       for (const s of specials.values()) remove(s)
       specials.clear()
+      for (const p of puffs) p.material.dispose()
+      puffs.length = 0
+      ball.dispose()
       scene.remove(group)
       box.dispose()
       cyl.dispose()

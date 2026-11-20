@@ -1,5 +1,5 @@
 // Grand Theft Outfit [部品: cheats] 主人公のスマホ。番号を打って発信すると、裏コードが効く（lib/gto/cheats.ts）。
-// 開き方: パソコンは P キーか右上の「スマホ」、スマホはミニマップを押して出るメニューの「スマホ」（PHONE_EVENT）。
+// 開き方: パソコンは P キーか右上の「スマホ」、スマホはミニマップの右下の隅の丸いボタン。どちらも、メニューの「スマホ」からも開く（PHONE_EVENT）。
 // 開いているあいだは街の時間を止める（着替え画面と同じ）。通じたら一言を出して自分で閉じ、次の 1 歩で効く。
 // 画面: 打った番号・メモ（番号と効き目の一覧。押すとその番号へ発信する）・テンキー。背の低い横長の画面では左右 2 列に分ける。
 // キー: 数字で打つ、Backspace で 1 つ消す、Enter で発信、Esc か P で閉じる。開いているあいだのキーは街の操作へ渡さない。
@@ -133,10 +133,19 @@ export default function GtoPhone({ engine, touch }: Props) {
   const busy = result?.ok === true
   return (
     <div className={touch ? 'gtp is-touch' : 'gtp'} ref={rootRef}>
-      {!open && !touch && (
+      {!open && (
         <button type="button" className="gtp-open jp" onClick={() => setOpen(true)} aria-label={t('スマホを開く')}>
-          <kbd className="mono">P</kbd>
-          {t('スマホ')}
+          {touch ? (
+            // スマホ: ミニマップの右下の隅に、端末の絵だけの丸いボタン
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fillRule="evenodd" d="M8 2 H16 Q18 2 18 4 V20 Q18 22 16 22 H8 Q6 22 6 20 V4 Q6 2 8 2 Z M8 5 V17.5 H16 V5 Z M10.6 19 V20.4 H13.4 V19 Z" />
+            </svg>
+          ) : (
+            <>
+              <kbd className="mono">P</kbd>
+              {t('スマホ')}
+            </>
+          )}
         </button>
       )}
 

@@ -28,6 +28,7 @@ import type {
 } from './types'
 import { collideVehicles, controlFromInput, createVehicle, idleControl, isCar, isSpecial, stepVehicle, VEHICLE_SPECS } from './vehicle'
 import { flying, overhead, stepRide } from './aircraft'
+import { aimShot, blastVehicle, canFire, CANNON_TUNING } from './cannon'
 import { cheatOf, lowerWanted, spawnSpecial } from './cheats'
 import {
   createWanted,
@@ -258,9 +259,29 @@ export function stepGto(state: GtoState, input: InputFrame, world: GtoWorld, cfg
       const moved = stepRide(mine, plane ? { ...control, handbrake: false, lift: (input.handbrake ? 1 : 0) - (input.run || input.horn ? 1 : 0) } : control, world, dt)
       vehicles = replaceById(vehicles, moved.vehicle)
       events.push(...moved.events)
-      const v = moved.vehicle
+      let v = moved.vehicle
+      // [cheats] 戦車は、服をいただくボタン（E）か警笛のボタンで砲を撃つ（cannon.ts）。警笛は鳴らさない
+      const tank = v.kind === 'tank'
+      if (tank) {
+        v = { ...v, reload: Math.max(0, (v.reload ?? 0) - dt) }
+        if ((input.steal || input.horn) && canFire(v) && canDrive(player)) {
+          const shot = aimShot(world, v, vehicles)
+          const f = dirOf(v.heading)
+          events.push({ type: 'shot', x: shot.from.x, z: shot.from.z, value: v.heading }, { type: 'blast', x: shot.to.x, z: shot.to.z, value: shot.dist, ref: shot.hitId == null ? undefined : String(shot.hitId) })
+          v = { ...v, reload: CANNON_TUNING.reload, shotAt: { ...shot.to, t }, speed: v.speed - CANNON_TUNING.recoil }
+          vehicles = vehicles.map((o) => {
+            if (o.id === v.id) return o
+            const hit = blastVehicle(o, shot.to, o.id === shot.hitId, f)
+            if (!hit) return o
+            // 交通の車は道筋から外れ、運転手は降りて逃げる。警察の車も動けなくなる
+            if (o.driver === 'traffic' && cfg.outfitKeys.length > 0) peds = [...peds, bailOut(world, hit, nextId++, cfg.outfitKeys[Math.floor(R.next() * cfg.outfitKeys.length)], shot.to)]
+            return o.driver === 'traffic' || o.driver === 'police' ? { ...hit, driver: 'none' as const, route: null } : hit
+          })
+        }
+        vehicles = replaceById(vehicles, v)
+      }
       player = { ...player, x: v.x, y: v.y, z: v.z, heading: v.heading, speed: v.speed }
-      if (input.horn && !plane && frame % 24 === 0) events.push({ type: 'horn', x: v.x, z: v.z })
+      if (input.horn && !plane && !tank && frame % 24 === 0) events.push({ type: 'horn', x: v.x, z: v.z })
     }
   }
 

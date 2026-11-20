@@ -437,6 +437,18 @@ function withVelocity(v: VehicleState, x: number, z: number, vx: number, vz: num
   return { ...v, x, z, speed: vx * f.x + vz * f.z, slip: -vx * f.z + vz * f.x, yawRate }
 }
 
+/**
+ * [cheats] 車を世界の向き（dvx, dvz）へ突き飛ばし、回転（spin rad/s）を足す。重い車ほど動かない（1400kg のセダンが基準）。
+ * 戦車の砲の爆風（cannon.ts）が使う
+ */
+export function shoveVehicle(v: VehicleState, dvx: number, dvz: number, spin: number): VehicleState {
+  const f = dirOf(v.heading)
+  const light = Math.min(1, 1400 / VEHICLE_SPECS[v.kind].mass)
+  const vx = f.x * v.speed - f.z * v.slip + dvx * light
+  const vz = f.z * v.speed + f.x * v.slip + dvz * light
+  return withVelocity(v, v.x, v.z, vx, vz, clamp(v.yawRate + spin * light, -VEHICLE_TUNING.maxKick, VEHICLE_TUNING.maxKick))
+}
+
 /** 当たった点（世界の座標）を、当たる前の車体の座標に直して損傷を積む */
 function dentAt(next: VehicleState, before: VehicleState, hit: Contact, impact: number): VehicleState {
   const spec = VEHICLE_SPECS[before.kind]

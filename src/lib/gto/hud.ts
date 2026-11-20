@@ -185,6 +185,8 @@ export function hudModel(state: GtoState, world: GtoWorld, extra: HudExtra): Hud
   if (state.mode === 'drive') {
     // [cheats] 飛行機は、上昇と下降のキーをいつも出す。降りられるのは、着地してほぼ止まったときだけ
     if (extra.ride === 'plane') prompts.push({ key: 'Space', label: '上昇' }, { key: 'Shift', label: '下降' })
+    // [cheats] 戦車は砲を撃てる
+    if (extra.ride === 'tank') prompts.push({ key: 'E', label: '撃つ' })
     const canExit = extra.ride ? extra.altitude == null && Math.abs(state.player.speed) < SPECIAL_EXIT_PROMPT_SPEED : Math.abs(state.player.speed) < EXIT_PROMPT_SPEED
     if (canExit) prompts.push({ key: 'F', label: '降りる' })
   } else {

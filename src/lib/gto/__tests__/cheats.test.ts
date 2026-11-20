@@ -298,15 +298,15 @@ describe('gto cheats: 操作の案内', () => {
 
   it('HUD: 戦車は、ほぼ止まっているときだけ「降りる」を出す', () => {
     const s = step(step(start(), { cheat: 'tank' }), { enter: true })
-    expect(hud(s).prompts.map((p) => p.label)).toEqual(['降りる'])
+    expect(hud(s).prompts.map((p) => p.label)).toEqual(['撃つ', '降りる'])
     const moving = run(s, 2, { moveY: 1 })
-    expect(hud(moving).prompts).toEqual([])
+    expect(hud(moving).prompts.map((p) => p.label)).toEqual(['撃つ'])
   })
 
   it('タッチ: 飛行機は、サイドブレーキと警笛のボタンが「上昇」「下降」になり、止まっていても出る', () => {
-    expect(touchCaption('handbrake', true)).toBe('上昇')
-    expect(touchCaption('horn', true)).toBe('下降')
-    expect(touchCaption('gas', true)).toBe('アクセル')
+    expect(touchCaption('handbrake', 'plane')).toBe('上昇')
+    expect(touchCaption('horn', 'plane')).toBe('下降')
+    expect(touchCaption('gas', 'plane')).toBe('アクセル')
     expect(touchCaption('handbrake')).toBe('サイドブレーキ')
     expect(Object.keys(FLIGHT_CAPTION).sort()).toEqual(['handbrake', 'horn'])
     const base = { canEnter: false, canSteal: false }

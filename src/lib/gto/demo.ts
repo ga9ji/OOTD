@@ -419,6 +419,22 @@ export const DEMOS: Record<string, DemoScenario> = {
     ],
     loop: 30,
   },
+  // [cheats] 戦車に乗って、目の前の通りへ 3 発撃つ（砲口の閃光・着弾・車が突き飛ばされて煙を吐く・手配が付く）
+  'cheat-cannon': {
+    label: '裏コード: 戦車の砲を撃つ',
+    mode: 'foot',
+    segments: [
+      { t0: 2.2, t1: 2.9, input: { moveX: -1 } },
+      { t0: 3.2, t1: 3.3, input: { horn: true } },
+      { t0: 5, t1: 5.1, input: { horn: true } },
+      { t0: 7, t1: 7.1, input: { horn: true } },
+    ],
+    presses: [
+      { at: 0.5, press: 'cheat', cheat: 'tank' },
+      { at: 1.6, press: 'enter' },
+    ],
+    loop: 30,
+  },
   // [cheats] 裏コードで飛行機を出して乗り、滑走して離陸し、旋回しながら上がる
   'cheat-plane': {
     label: '裏コード: 飛行機を出して乗り、離陸して旋回する',

@@ -320,6 +320,8 @@ export interface TouchContext {
   plane?: boolean
   /** [cheats] 飛んでいる（車輪が地面から離れている） */
   airborne?: boolean
+  /** [cheats] 戦車に乗っている（警笛のボタンが砲になる） */
+  tank?: boolean
 }
 
 /** 「降りる」を出す速さの上限と、「サイドブレーキ」を出す速さの下限（m/s）。重なりがあるので境目でちらつかない */
@@ -365,8 +367,12 @@ export const TOUCH_CAPTION: Record<TouchButtonId, string> = {
 }
 /** [cheats] 飛行機に乗っているあいだの名前: サイドブレーキのボタンが上昇、警笛のボタンが下降になる（sim.ts の操作の読み替えと同じ） */
 export const FLIGHT_CAPTION: Partial<Record<TouchButtonId, string>> = { handbrake: '上昇', horn: '下降' }
-/** ボタンの名前（飛行機に乗っていれば、上昇・下降に読み替える） */
-export const touchCaption = (id: TouchButtonId, flying = false): string => (flying ? FLIGHT_CAPTION[id] : undefined) ?? TOUCH_CAPTION[id]
+/** [cheats] 戦車に乗っているあいだの名前: 警笛のボタンが砲になる */
+export const TANK_CAPTION: Partial<Record<TouchButtonId, string>> = { horn: '撃つ' }
+/** [cheats] 乗っている裏コードの乗り物（ボタンの読み替えに使う。ふつうの車と徒歩は null か無し） */
+export type TouchRide = 'plane' | 'tank' | null | undefined
+/** ボタンの名前（飛行機・戦車に乗っていれば、その乗り物の操作に読み替える） */
+export const touchCaption = (id: TouchButtonId, ride?: TouchRide): string => (ride === 'plane' ? FLIGHT_CAPTION[id] : ride === 'tank' ? TANK_CAPTION[id] : undefined) ?? TOUCH_CAPTION[id]
 /** 左下の操作の名前（徒歩のスティックと、運転の左右矢印） */
 export const TOUCH_PAD_CAPTION: Record<PlayMode, string> = { foot: '移動', drive: 'ハンドル' }
 
@@ -421,6 +427,12 @@ const PLANE_AIR_HINTS: TouchHint[] = [
   hint('plane-land', { icon: 'brake', text: 'で遅くして、「下降」で道に降りる' }),
 ]
 
+// [cheats] 戦車の案内
+const TANK_HINTS: TouchHint[] = [
+  hint('tank-fire', { text: '「撃つ」で、向いている先へ砲を撃つ' }),
+  hint('tank-turn', { icon: 'steer', text: 'だけで、止まったままその場で回る' }),
+]
+
 /**
  * その場面で使える操作の意味を1行で返す。
  * いまだけ使えるボタン（乗る・奪う）が出ているときはその説明、ふだんは基本の操作を beat ごとに順送りする。
@@ -429,6 +441,7 @@ const PLANE_AIR_HINTS: TouchHint[] = [
 export function touchHint(mode: PlayMode, ctx: TouchHintContext, beat: number): TouchHint {
   const turn = <T>(list: T[]): T => list[((Math.floor(beat) % list.length) + list.length) % list.length]
   if (mode === 'drive' && ctx.plane) return turn(ctx.airborne ? PLANE_AIR_HINTS : PLANE_GROUND_HINTS)
+  if (mode === 'drive' && ctx.tank) return turn(Math.abs(ctx.speed) > TOUCH_SHOW.handbrakeAbove ? TANK_HINTS : [...TANK_HINTS, HINT_STOPPED])
   if (mode === 'drive') return Math.abs(ctx.speed) > TOUCH_SHOW.handbrakeAbove ? turn(DRIVE_HINTS) : HINT_STOPPED
   if (ctx.canEnter && ctx.canSteal) return hint('foot-enter-steal', { icon: 'enter', text: 'で車に乗る' }, { icon: 'steal', text: 'で服をいただく' })
   if (ctx.canEnter) return hint('foot-enter', HINT_ENTER)

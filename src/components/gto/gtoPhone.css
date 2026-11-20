@@ -42,8 +42,35 @@
 .gtp-open:hover {
   background: var(--gto-ink);
 }
-/* メニュー（もどる・音・全画面）が出ているあいだは隠す */
-.gto-stage[data-gto-hud='menu'] .gtp-open {
+/* スマホ: ミニマップ（左上の正方形の中の円）の、右下の空いた隅に置く丸いボタン。
+   円の縁の印（北・向かう先）に被らないよう、隅の外寄りへ出す。押せる範囲は外側へ広げる（::after） */
+.gtp.is-touch .gtp-open {
+  top: calc(max(8px, env(safe-area-inset-top, 0px)) + var(--gto-map, 120px) - 25px);
+  right: auto;
+  left: calc(max(8px, env(safe-area-inset-left, 0px)) + var(--gto-map, 120px) - 25px);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1.5px solid rgba(241, 231, 208, 0.6);
+  border-radius: 50%;
+  background: rgba(18, 23, 43, 0.82);
+  touch-action: manipulation;
+}
+.gtp.is-touch .gtp-open svg {
+  width: 19px;
+  height: 19px;
+  fill: currentColor;
+}
+.gtp.is-touch .gtp-open::after {
+  position: absolute;
+  inset: -2px -9px -9px -2px;
+  content: '';
+}
+/* メニュー（もどる・音・全画面）や着替え画面が出ているあいだは隠す */
+.gto-stage[data-gto-hud='menu'] .gtp-open,
+.gto-stage:has(.gtw-screen) .gtp-open {
   display: none;
 }
 

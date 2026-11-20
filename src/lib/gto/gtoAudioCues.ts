@@ -205,6 +205,18 @@ export function playCue(kit: Kit, cue: AudioCue, at: number): void {
       ;[N.G4, N.E4 * 0.944, N.D4 * 0.89].forEach((f, i) => kit.tone({ at: at + i * 0.2, wave: 'triangle', f, f1: f * 0.96, dur: i === 2 ? 0.9 : 0.28, vol: 0.2 * g, verb: 0.5 }))
       kit.burst({ at: at + 0.4, noise: 'brown', filter: 'lowpass', f: 200, dur: 0.5, vol: 0.2 * g })
       break
+    case 'shot':
+      // [cheats] 戦車の砲: 腹に響く低い破裂と、砲身の鳴り
+      kit.burst({ at, noise: 'brown', filter: 'lowpass', f: 420, f1: 90, dur: 0.5, vol: 0.5 * g, pan, verb: 0.5 })
+      kit.burst({ at, filter: 'bandpass', f: 1800, f1: 500, q: 0.8, dur: 0.09, vol: 0.2 * g, pan })
+      kit.tone({ at, wave: 'sine', f: 95, f1: 42, dur: 0.45, vol: 0.4 * g, attack: 0.004, pan })
+      break
+    case 'blast':
+      // [cheats] 着弾: 少し遅れて届く爆発と、ぱらぱら落ちる破片
+      kit.burst({ at: at + 0.05, noise: 'brown', filter: 'lowpass', f: 700, f1: 110, dur: 0.9, vol: 0.55 * g, pan, verb: 0.7 })
+      kit.burst({ at: at + 0.05, filter: 'bandpass', f: 2400, f1: 700, q: 0.7, dur: 0.16, vol: 0.16 * g, pan, verb: 0.4 })
+      for (let i = 0; i < 4; i++) kit.burst({ at: at + 0.3 + i * 0.09 + kit.random() * 0.05, filter: 'highpass', f: 2600, dur: 0.04, vol: 0.03 * g, pan, verb: 0.5 })
+      break
     case 'cheat':
       // [cheats] 裏コードが通じた: 電話の呼び出しのような 2 連の短い音と、上へ抜ける 1 音
       for (let i = 0; i < 2; i++) kit.tone({ at: at + i * 0.11, wave: 'square', f: N.A5, dur: 0.07, vol: 0.05 * g, attack: 0.005, lowpass: 2400 })

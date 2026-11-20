@@ -1244,6 +1244,9 @@ export const EN: Record<string, string> = {
   'メモ': 'Notes',
   'ひと文字消す': 'Delete one digit',
   '発信': 'CALL',
+  '撃つ': 'Fire',
+  '「撃つ」で、向いている先へ砲を撃つ': 'Fire shoots the cannon straight ahead',
+  'だけで、止まったままその場で回る': 'alone turns the tank on the spot',
   // [gto mobile] タッチのボタンの名前と、場面ごとの操作の案内
   'アクセル': 'Gas',
   'ブレーキ': 'Brake',

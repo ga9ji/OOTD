@@ -236,7 +236,8 @@ export function stepPed(
   // ---- 騒ぎから逃げる ----
   let scare: { x: number; z: number } | null = null
   for (const e of events) {
-    if (e.type !== 'steal' && e.type !== 'carjack' && e.type !== 'crash' && e.type !== 'hitPed') continue
+    // [cheats] blast は戦車の砲の着弾
+    if (e.type !== 'steal' && e.type !== 'carjack' && e.type !== 'crash' && e.type !== 'hitPed' && e.type !== 'blast') continue
     if (e.ref === String(p.id)) continue
     if (dist2(p.x, p.z, e.x, e.z) < T.scareRange * T.scareRange) scare = e
   }

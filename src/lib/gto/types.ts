@@ -326,6 +326,9 @@ export interface VehicleState {
   /** [cheats] 飛行機だけ: 車輪が地面から浮いている高さ m（0 か無ければ接地）と、上下の速さ m/s（上が＋）。飛んでいるあいだ y は「地面＋alt」 */
   alt?: number
   climb?: number
+  /** [cheats] 戦車だけ: 次に撃てるまでの秒（0 か無ければ撃てる）と、最後に撃った弾の着いた場所・その時刻（描画が煙と炎を出す。lib/gto/cannon.ts） */
+  reload?: number
+  shotAt?: { x: number; z: number; t: number }
   /** [vehicle] 壊れ具合 0..1（vehicleDamage.ts の段階で白煙→黒煙→炎）。無ければ無傷 */
   damage?: number
   /** [vehicle] 車体の凹み 0..1。並びは vehicleDamage.ts の DENT（前の左・中・右、後ろの左・中・右、左側面、右側面）。無ければ無傷 */
@@ -510,6 +513,8 @@ export type GtoEventType =
   | 'missionDone'
   | 'missionFail'
   | 'cheat'
+  | 'shot'
+  | 'blast'
 
 /** その1歩で起きたこと。音・HUD・手配・ミッションはこれを読む */
 export interface GtoEvent {

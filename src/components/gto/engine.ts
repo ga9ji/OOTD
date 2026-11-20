@@ -14,6 +14,7 @@ import { demoRoad, gapAhead, laneLeftOf } from '../../lib/gto/traffic'
 import type { QualityPreset } from '../../lib/gto/quality'
 import type { Launch } from '../../lib/gto/shot'
 import { createGtoState, stepGto, viewOf, type GtoView } from '../../lib/gto/sim'
+import { titleCamera } from '../../lib/gto/titleCamera'
 import type { GtoState, GtoWorld, SimConfig } from '../../lib/gto/types'
 import { createActorsRenderer } from './renderActors'
 import { createCityRenderer } from './renderCity'
@@ -225,11 +226,11 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
   const lookTarget = new THREE.Vector3()
   const placeCamera = () => {
     if (phase === 'title') {
-      // 題名の画面では、交差点の上をゆっくり回る
-      const a = now * 0.05 + 0.6
-      camera.position.set(Math.sin(a) * 150, 78, Math.cos(a) * 150)
-      camera.fov = 50
-      camera.lookAt(0, 14, 0)
+      // 題名の画面では、交差点を見下ろす弧の上をゆっくり往復する（建物とクレーンを避けた弧。lib/gto/titleCamera.ts）
+      const c = titleCamera(now)
+      camera.position.set(c.x, c.y, c.z)
+      camera.fov = c.fov
+      camera.lookAt(c.tx, c.ty, c.tz)
     } else if (launch.photo) {
       const p = launch.photo
       const d = dirOf(p.heading)

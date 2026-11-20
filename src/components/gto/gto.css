@@ -388,8 +388,10 @@
   justify-items: center;
   gap: 12px;
   padding: 16px;
-  background: linear-gradient(180deg, rgba(18, 23, 43, 0.3), rgba(18, 23, 43, 0.72));
+  background: linear-gradient(180deg, rgba(18, 23, 43, 0.42), rgba(18, 23, 43, 0.8));
   text-align: center;
+  /* 明るい街並みの上でも、細い文字が読めるようにする */
+  text-shadow: 0 1px 3px rgba(18, 23, 43, 0.95);
   overflow: auto;
 }
 .gto-logo {
@@ -410,6 +412,7 @@
   font-size: 15px;
   font-weight: 700;
   box-shadow: 0 0 0 2px var(--gto-ink), 0 0 0 3.5px var(--gto-thread);
+  text-shadow: none;
 }
 .gto-start:hover {
   background: #ff814a;

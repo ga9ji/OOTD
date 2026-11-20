@@ -334,6 +334,11 @@
     right: max(8px, env(safe-area-inset-right, 0px));
     max-width: none;
     font-size: 12px;
+    transition: opacity 0.15s;
+  }
+  /* 服をいただいたお知らせ（outfit の部品）が同じ段に出ているあいだは、案内を引っ込める */
+  .gto-stage:has(.gtw-toast) .gtt-hint {
+    opacity: 0;
   }
 }
 

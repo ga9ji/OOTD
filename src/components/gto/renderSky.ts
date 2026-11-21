@@ -13,6 +13,8 @@
 //       路面の照り返し（sheenGlsl）は lighting.ts の roadSheen と同じ式。奥行きから面の向きを戻し、上を向いた面にだけ、
 //       鏡の向きに写っている空・太陽・看板の光を浅い角度ほど強く足す（ポストプロセスのある画質だけ）。
 //       街灯の柱と灯具は街の部品、ヘッドライトの光だまりは車の部品が描く（強さは lighting.ts の数字を読む）。
+//       天気（lib/gto/weather.ts の weatherLook）は、時刻の数字の上に毎フレーム掛ける: 空と雲と霧をくもりの色へ寄せ、直射を弱め、
+//       霧で見通しを縮め、濡れた路面の照り返しを強め、稲光で空と街を一瞬照らす。晴れのときは何も変えない（GLSL に埋めた時刻の数字はそのまま）。
 import * as THREE from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
@@ -21,6 +23,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { hexToLinear, SHEEN_LOBES, SHEEN_UP, SHOULDER_KNEE, type LightingParams, type Rgb } from '../../lib/gto/lighting'
 import { GLARE_LOBES, scatterLobe } from '../../lib/gto/lightingLocal'
 import { SHADOW_CAP } from '../../lib/gto/lightingShadow'
+import { WEATHER_TONES, weatherLook } from '../../lib/gto/weather'
 import { createLampHalos } from './renderSkyHalos'
 import { createLightPools, createLocalLights } from './renderSkyPools'
 import { installShadowCap } from './renderSkyShadow'
@@ -109,6 +112,7 @@ const SHEEN_SEEN = 0.3
 /** 路面の照り返しの GLSL。太陽の筋は lighting.ts の roadSheen と同じ式 */
 const sheenGlsl = () => `
 uniform float gloss;
+uniform float mirror;
 uniform vec3 sheenColor;
 // カメラから見たその画素の位置（向きは世界の軸）
 vec3 gtoRel(vec2 uv) {
@@ -116,19 +120,20 @@ vec3 gtoRel(vec2 uv) {
   float z = camNear * camFar / ((camFar - camNear) * d - camFar);
   return (camForward + camRight * (uv.x * 2.0 - 1.0) + camUp * (uv.y * 2.0 - 1.0)) * (-z);
 }
-vec3 gtoSheen(vec2 uv, vec3 dir, float depth) {
-  if (gloss <= 0.0 || depth > 0.99999) return vec3(0.0);
+// 戻り値の rgb は足す光、a は「上を向いた面か」（濡れた路面を暗くするのに使う）
+vec4 gtoSheen(vec2 uv, vec3 dir, float depth) {
+  if (gloss <= 0.0 || depth > 0.99999) return vec4(0.0);
   // 奥行きの傾きから面の向きを戻す。上を向いた面（路面・歩道・車の屋根）だけが照り返す
   vec3 p = gtoRel(uv);
   vec3 n = normalize(cross(gtoRel(uv + vec2(texel.x, 0.0)) - p, gtoRel(uv + vec2(0.0, texel.y)) - p));
   float flatness = smoothstep(${f(SHEEN_UP[0])}, ${f(SHEEN_UP[1])}, n.y);
-  if (flatness <= 0.0) return vec3(0.0);
+  if (flatness <= 0.0) return vec4(0.0);
   float vn = dot(dir, n);
   vec3 r = dir - 2.0 * vn * n;
   float fres = 0.04 + 0.96 * pow(1.0 - clamp(-vn, 0.0, 1.0), 3.0);
   // 鏡の向きが画面のどこに当たるか
   float rf = dot(r, camForward);
-  if (rf <= 0.001) return vec3(0.0);
+  if (rf <= 0.001) return vec4(0.0, 0.0, 0.0, flatness);
   vec2 m = vec2(dot(r, camRight) / dot(camRight, camRight), dot(r, camUp) / dot(camUp, camUp)) / rf * 0.5 + 0.5;
   // 画素ごとに読む位置をずらして、段を細かい粒に散らす（粒の並びが目立たない配り方）
   float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
@@ -141,13 +146,13 @@ vec3 gtoSheen(vec2 uv, vec3 dir, float depth) {
     // 画面の外（上）は、縁の色を弱めて使う
     float inside = (1.0 - smoothstep(1.0, 1.25, q.y)) * step(0.0, q.x) * step(q.x, 1.0);
     vec3 s = min(texture2D(tDiffuse, qc).rgb, vec3(4.0));
-    // 光っている物（太陽のまわりの空・ネオン・灯り）だけが写る。壁や看板の面は写さない（濡れた路面にしない）
-    seen += s * smoothstep(0.45, 1.3, max(s.r, max(s.g, s.b))) * inside;
+    // 乾いた路面には、光っている物（太陽のまわりの空・ネオン・灯り）だけが写る。雨で濡れると（mirror）、壁や空も写る
+    seen += s * max(smoothstep(0.45, 1.3, max(s.r, max(s.g, s.b))), mirror) * inside;
     sky += step(0.99999, texture2D(tDepth, qc).x);
   }
   float c = max(dot(r, sunDir), 0.0);
   float lobes = ${SHEEN_LOBES.map(([power, weight]) => `${f(weight)} * pow(c, ${f(power)})`).join(' + ')};
-  return gloss * flatness * fres * (seen * ${f(SHEEN_SEEN)} / float(${SHEEN_TAPS}) + sheenColor * lobes * (sky / float(${SHEEN_TAPS})));
+  return vec4(gloss * flatness * fres * (seen * ${f(SHEEN_SEEN)} / float(${SHEEN_TAPS}) + sheenColor * lobes * (sky / float(${SHEEN_TAPS}))), flatness);
 }`
 
 const scaledRgb = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k]
@@ -239,11 +244,15 @@ uniform vec3 sunDir;
 uniform vec3 sunColor;
 uniform float sunGlow;
 uniform float sunCore;
+uniform float wxTint;
 uniform float clouds;
 uniform vec3 cloudColor;
 uniform float stars;
 uniform vec3 cityGlow;
 uniform float now;
+uniform float flash;
+uniform vec3 wxColor;
+uniform float wxHaze;
 varying vec3 vDir;
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -296,10 +305,14 @@ void main() {
   // 太陽の芯。空の中でここだけが白く飛ぶ（光がどこから来ているかの基準点になる）
   col += mix(sunColor, vec3(1.0), 0.7) * sunCore * (smoothstep(0.9995, 0.9999, s) * 4.0 + pow(s, 1800.0) * 1.6 + pow(s, 420.0) * 0.5) * (1.0 - cover * 0.6);
   if (up < 0.0) col = horizon;
+  // 稲光。雲の厚い所ほど明るく光る
+  col += vec3(0.62, 0.7, 0.92) * flash * (0.45 + 0.55 * cover);
   #ifdef SKY_SCATTER
   // ポストプロセスの無い画質では、空のかすみをここで掛ける（ある画質では最後の1枚で掛ける）
   float cosSun = dot(d, normalize(sunDir));
-  col = mix(col, gtoScatterTint(cosSun), gtoScatterAmount(1.0e6, cosSun) * gtoSkyHaze(up));
+  col = mix(col, mix(gtoScatterTint(cosSun), wxColor, wxTint), gtoScatterAmount(1.0e6, cosSun) * gtoSkyHaze(up));
+  // 天気のかすみ（霧の日は空ごと霧の色になる）
+  col = mix(col, wxColor, wxHaze);
   #endif
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
@@ -328,6 +341,12 @@ uniform float vignette;
 uniform vec3 glareColor;
 uniform vec2 texel;
 uniform float soften;
+uniform vec3 wxColor;
+uniform float wxTint;
+uniform float wxHaze;
+uniform float wxLength;
+uniform float wxGray;
+uniform float wetDark;
 varying vec2 vUv;
 ${grade}
 ${scatter}
@@ -342,19 +361,28 @@ void main() {
   vec3 dir = normalize(ray);
   float cosSun = dot(dir, sunDir);
   // 空は地平線の近くだけ霞ませる
-  float haze = gtoScatterAmount(-viewZ * length(ray), cosSun) * mix(1.0, gtoSkyHaze(dir.y), step(0.99999, depth));
+  float dist = -viewZ * length(ray);
+  float haze = gtoScatterAmount(dist, cosSun) * mix(1.0, gtoSkyHaze(dir.y), step(0.99999, depth));
+  // 天気のかすみ（霧と雨）。時刻のかすみと違い、空にもそのまま掛かる
+  float wx = wxHaze * (1.0 - exp(-dist / wxLength));
   if (soften > 0.0) {
     // かすみの濃い所は輪郭もぼかす（遠くのビルと手前の街路樹で輪郭の硬さを変える）
-    vec2 o = texel * soften * smoothstep(0.2, 0.75, haze);
+    vec2 o = texel * soften * smoothstep(0.2, 0.75, max(haze, wx));
     c = c * 0.36 + 0.16 * (texture2D(tDiffuse, vUv + vec2(o.x, o.y)).rgb + texture2D(tDiffuse, vUv + vec2(-o.x, o.y)).rgb + texture2D(tDiffuse, vUv + vec2(o.x, -o.y)).rgb + texture2D(tDiffuse, vUv + vec2(-o.x, -o.y)).rgb);
   }
   // 路面の照り返し（かすみの手前の、面そのものの光）
-  c += gtoSheen(vUv, dir, depth);
-  c = mix(c, gtoScatterTint(cosSun), haze);
+  vec4 sheen = gtoSheen(vUv, dir, depth);
+  // 濡れた路面は地の色が沈み、その上に照り返しが乗る
+  c = c * (1.0 - wetDark * sheen.a) + sheen.rgb;
+  // くもりと霧の日は、かすみの色も太陽の色から灰色へ寄る
+  c = mix(c, mix(gtoScatterTint(cosSun), wxColor, wxTint), haze);
+  c = mix(c, wxColor, wx);
   // 逆光のにじみ。太陽の見えている方角では、空の光が建物の輪郭や車の上へあふれる
   if (shafts > 0.0) c += glareColor * gtoGlare(cosSun, gtoSkyShare(vUv));
   // 太陽の方を向いたときの逆光。画面全体が太陽の色へ寄る
   c = c * (1.0 - veil * 0.25) + veilColor * veil;
+  // くもり空の下では色が抜ける
+  c = mix(c, vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), wxGray);
   c = gtoGrade(c);
   vec2 q = vUv - 0.5;
   c *= 1.0 - vignette * smoothstep(0.18, 0.8, dot(q, q) * 2.0);
@@ -364,6 +392,7 @@ void main() {
 export function createSkyRenderer(ctx: RenderCtx): SkyRenderer {
   const { scene, camera, renderer, quality } = ctx
   const L = ctx.lighting
+  const T = WEATHER_TONES[ctx.time]
   const far = quality.drawDistance
   const fogNear = far * L.fogNear
   const fogFar = far * L.fogFar
@@ -383,7 +412,10 @@ export function createSkyRenderer(ctx: RenderCtx): SkyRenderer {
   const background = new THREE.Color(L.fogColor)
   scene.fog = fog
   scene.background = background
-  const fogBase = quality.post ? null : new THREE.Color(L.fogColor)
+  // 晴れの色と、くもりの色（天気でこの間を行き来する）
+  const clear = { fog: new THREE.Color(L.fogColor), top: new THREE.Color(L.skyTop), horizon: new THREE.Color(L.skyHorizon), cloud: new THREE.Color(L.cloudColor), hemi: new THREE.Color(L.hemiSky), sun: new THREE.Color(L.sunColor) }
+  const gray = { fog: new THREE.Color(T.fog), top: new THREE.Color(T.skyTop), horizon: new THREE.Color(T.skyHorizon), cloud: new THREE.Color(T.cloud), hemi: new THREE.Color(T.hemi) }
+  const fogBase = new THREE.Color(L.fogColor)
   const fogSun = new THREE.Color(L.scatter.color).multiplyScalar(Math.min(1, L.scatter.gain))
   const fogBack = new THREE.Color(L.scatter.backColor)
   const fogTint = new THREE.Color()
@@ -427,6 +459,10 @@ export function createSkyRenderer(ctx: RenderCtx): SkyRenderer {
       stars: { value: L.stars },
       cityGlow: { value: new THREE.Color(L.cityGlow).multiplyScalar(L.cityGlowStrength) },
       now: { value: 0 },
+      flash: { value: 0 },
+      wxColor: { value: new THREE.Color(T.fog) },
+      wxTint: { value: 0 },
+      wxHaze: { value: 0 },
     },
     side: THREE.BackSide,
     depthWrite: false,
@@ -477,7 +513,14 @@ export function createSkyRenderer(ctx: RenderCtx): SkyRenderer {
         sunUv: { value: new THREE.Vector2(0.5, 0.5) },
         shafts: { value: 0 },
         gloss: { value: L.roadGloss },
+        mirror: { value: 0 },
         sheenColor: { value: new THREE.Color(L.sunColor) },
+        wxColor: { value: new THREE.Color(T.fog) },
+        wxTint: { value: 0 },
+        wxHaze: { value: 0 },
+        wxLength: { value: 400 },
+        wxGray: { value: 0 },
+        wetDark: { value: 0 },
       },
       toneMapped: false,
       depthTest: false,
@@ -494,6 +537,27 @@ export function createSkyRenderer(ctx: RenderCtx): SkyRenderer {
       const p = frame.state.player
       sky.position.copy(camera.position)
       skyMaterial.uniforms.now.value = frame.now
+      // ---- 天気: 時刻の数字の上に掛ける ----
+      const W = weatherLook(ctx.time, frame.weather)
+      const su = skyMaterial.uniforms
+      su.top.value.copy(clear.top).lerp(gray.top, W.gray)
+      su.horizon.value.copy(clear.horizon).lerp(gray.horizon, W.gray)
+      // 雨雲は暗い
+      su.cloudColor.value.copy(clear.cloud).lerp(gray.cloud, W.gray).multiplyScalar(1 - 0.3 * frame.weather.rain * W.gray)
+      su.clouds.value = L.clouds + (1 - L.clouds) * W.clouds
+      su.sunGlow.value = L.sunGlow * W.sun
+      su.sunCore.value = L.sunCore * W.sun
+      su.stars.value = L.stars * W.stars
+      su.flash.value = W.flash
+      su.wxTint.value = W.gray
+      su.wxHaze.value = W.haze
+      sun.intensity = L.sunIntensity * W.sun
+      hemi.intensity = L.hemiIntensity * W.hemi + W.flash
+      hemi.color.copy(clear.hemi).lerp(gray.hemi, W.gray)
+      fogBase.copy(clear.fog).lerp(gray.fog, W.gray)
+      fog.near = fogNear * W.fogNear
+      fog.far = fogFar * W.fogFar
+      if (bloom) bloom.strength = L.bloom.strength * W.bloom
       if (quality.shadows) {
         // 影の範囲を見ている場所に付いて回らせる。影の1画素ぶんに丸めて、動いたときのちらつきを抑える
         const fx = frame.photo ? camera.position.x : p.x
@@ -513,10 +577,21 @@ export function createSkyRenderer(ctx: RenderCtx): SkyRenderer {
       if (finalMaterial) {
         const u = finalMaterial.uniforms
         // 横を向いていても、太陽の側なら少し染まる
-        u.veil.value = L.sunVeil * THREE.MathUtils.clamp((forward.dot(sunDir) + L.scatter.wrap) / (1 + L.scatter.wrap), 0, 1) ** 2
+        u.veil.value = L.sunVeil * W.sun * THREE.MathUtils.clamp((forward.dot(sunDir) + L.scatter.wrap) / (1 + L.scatter.wrap), 0, 1) ** 2
         // 太陽が画面のどこにあるか（後ろにあるときは、にじみを消す）
         const ahead = THREE.MathUtils.smoothstep(facing, 0.05, 0.3)
-        u.shafts.value = L.sunShafts * ahead
+        u.shafts.value = L.sunShafts * W.sun * ahead
+        u.gloss.value = L.roadGloss + W.gloss
+        u.mirror.value = W.mirror
+        // くもると太陽の筋は消え、写り込みだけが残る
+        u.sheenColor.value.copy(clear.sun).multiplyScalar(W.sun)
+        u.wxTint.value = W.gray
+        u.wxHaze.value = W.haze
+        u.wxLength.value = W.hazeLength
+        u.wxGray.value = W.desaturate
+        u.wetDark.value = W.wetDark
+        fog.color.copy(fogBase)
+        background.copy(fogBase)
         if (ahead > 0) {
           sunPoint.copy(camera.position).addScaledVector(sunDir, 1000).project(camera)
           u.sunUv.value.set(sunPoint.x * 0.5 + 0.5, sunPoint.y * 0.5 + 0.5)
@@ -528,11 +603,12 @@ export function createSkyRenderer(ctx: RenderCtx): SkyRenderer {
         u.camForward.value.copy(forward)
         u.camRight.value.setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(tan * camera.aspect)
         u.camUp.value.setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(tan)
-      } else if (fogBase && L.scatter.strength > 0) {
+      } else {
         // 奥行きを読めない画質では、霧の色ごと太陽の向きへ寄せる（画面の中の濃淡は出ない）
         const s = L.scatter
         const lobe = scatterLobe(forward.dot(sunDir), s)
-        const k = s.strength * (s.ambient + (1 - s.ambient) * lobe) * FOG_SCATTER_NO_POST
+        // くもりと霧の日は、太陽の色へは寄せない
+        const k = s.strength * (s.ambient + (1 - s.ambient) * lobe) * FOG_SCATTER_NO_POST * (1 - W.gray)
         fog.color.copy(fogBase).lerp(fogTint.copy(fogBack).lerp(fogSun, lobe), k)
         background.copy(fog.color)
       }

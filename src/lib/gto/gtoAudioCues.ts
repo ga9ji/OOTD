@@ -255,5 +255,15 @@ export function playCue(kit: Kit, cue: AudioCue, at: number): void {
     case 'voice':
       voice(kit, at, 0.45 * g, pan, v, v >= 1 ? 0.8 : 0)
       break
+    case 'thunder': {
+      // 雷鳴。光ってから少し遅れて、裂ける音 → 低い轟きが転がって遠ざかる
+      const t = at + 0.35 + v * 0.9
+      kit.burst({ at: t, filter: 'bandpass', f: 1800, f1: 400, q: 0.6, dur: 0.35, vol: 0.28 * g, pan, verb: 0.6 })
+      kit.burst({ at: t + 0.05, noise: 'brown', filter: 'lowpass', f: 320, f1: 70, dur: 2.6, vol: 0.8 * g, attack: 0.08, pan, verb: 0.7 })
+      for (let i = 0; i < 3; i++) {
+        kit.burst({ at: t + 0.5 + i * (0.45 + kit.random() * 0.3), noise: 'brown', filter: 'lowpass', f: 180 + kit.random() * 90, f1: 60, dur: 0.9, vol: (0.5 - i * 0.12) * g, attack: 0.12, pan: pan * 0.5, verb: 0.7 })
+      }
+      break
+    }
   }
 }

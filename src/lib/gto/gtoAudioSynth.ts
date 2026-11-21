@@ -209,6 +209,13 @@ export function createSynth(ctx: BaseAudioContext, opts: KitOptions): GtoSynth {
   trainSrc.connect(filter('bandpass', 700, 0.8)).connect(trainMid).connect(trainBus)
   trainSrc.connect(squealTone).connect(trainSqueal).connect(trainBus)
 
+  // ---- 雨: 路面を打つ細かい音（高い帯域）と、強い雨の地鳴り（低い帯域） ----
+  const rainHiss = gain()
+  const rainLow = gain()
+  const rainSrc = kit.loop('white')
+  rainSrc.connect(filter('highpass', 2400, 0.5)).connect(rainHiss).connect(kit.steady)
+  rainSrc.connect(filter('bandpass', 520, 0.5)).connect(rainLow).connect(kit.steady)
+
   // ---- サイレン: 上がって下がる連続音。遠いほどこもる ----
   const sirens = Array.from({ length: opts.lite ? 1 : 2 }, (_, i) => {
     const main = osc('sawtooth', 500)
@@ -300,6 +307,10 @@ export function createSynth(ctx: BaseAudioContext, opts: KitOptions): GtoSynth {
     glide(trainSqueal.gain, f.train * 0.06 * (0.5 + 0.5 * Math.sin(t * 1.9)), at, 0.1)
     glide(squealTone.frequency, 2900 + Math.sin(t * 0.8) * 350, at, 0.1)
     if (trainPan) glide(trainPan.pan, f.trainPan, at, 0.3)
+    // 雨はゆっくり強弱が付く。車の中では屋根を打つ低い音が勝つ
+    const gust = 0.85 + 0.15 * Math.sin(t * 0.7) * Math.sin(t * 0.31 + 1)
+    glide(rainHiss.gain, f.rain * gust * (0.13 - driving * 0.05), at, 0.4)
+    glide(rainLow.gain, f.rain * f.rain * gust * (0.1 + driving * 0.08), at, 0.4)
 
     // ---- サイレン ----
     sirens.forEach((s, i) => {

@@ -17,6 +17,7 @@ import { applySave, clearSave, hasProgress, loadSave, saveOf, saveSummary, store
 import { createGtoState, START_CASH, stepGto, viewOf, type GtoView } from '../../lib/gto/sim'
 import { titleCamera } from '../../lib/gto/titleCamera'
 import type { CheatId, GtoState, GtoWorld, SimConfig } from '../../lib/gto/types'
+import { createWeatherClock, windDir, type WeatherView } from '../../lib/gto/weather'
 import { createActorsRenderer } from './renderActors'
 import { createCityRenderer } from './renderCity'
 import { createMarkersRenderer } from './renderMarkers'
@@ -25,6 +26,7 @@ import { createSkyRenderer } from './renderSky'
 import { createSpecialsRenderer } from './renderSpecials'
 import type { FrameInfo, RenderCtx, RenderPart } from './renderTypes'
 import { createVehiclesRenderer } from './renderVehicles'
+import { createWeatherRenderer } from './renderWeather'
 
 const STEP = 1 / 60
 /** 1フレームで進める歩数の上限（処理落ちしても、ためこんで一気に進めない） */
@@ -34,6 +36,7 @@ const FPS_WINDOW = 900
 export interface UiFrame {
   state: GtoState
   view: GtoView
+  weather: WeatherView
 }
 
 export interface EngineOptions {
@@ -109,6 +112,12 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.3, quality.drawDistance * 1.5)
+  // ---- 天気（lib/gto/weather.ts）----
+  // ふつうに遊ぶときは、開くたびに違う順番で移り変わる。撮影用の URL では、指定が無ければ晴れのまま（同じクエリなら同じ絵にする）
+  const weatherFixed = launch.weather === 'random' ? null : (launch.weather ?? (launch.autostart ? 'clear' : null))
+  const weatherSeed = launch.autostart || launch.weather != null ? launch.seed : Math.floor(Math.random() * 0x7fffffff)
+  const weatherClock = createWeatherClock(weatherSeed, weatherFixed)
+  let lastStrike: number | null = null
   let pending = 0
   const ctx: RenderCtx = {
     scene,
@@ -118,6 +127,7 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     quality,
     lighting,
     time: launch.time,
+    wind: windDir(weatherSeed),
     spriteUrl: opts.spriteUrl,
     spriteAspect: opts.spriteAspect,
     loading: { begin: () => pending++, end: () => pending-- },
@@ -131,6 +141,7 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     createSpecialsRenderer(ctx),
     createActorsRenderer(ctx),
     createMarkersRenderer(ctx),
+    createWeatherRenderer(ctx),
   ]
 
   const freshState = () => createGtoState(world, cfg, { seed: launch.seed, mode: launch.mode, start: launch.start, stage: launch.demo?.stage, starterCar: launch.photo == null })
@@ -305,6 +316,7 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
       cash: state.cash,
       quality: quality.id,
       time: launch.time,
+      weather: weatherClock.at(state.t).kind,
       demo: launch.demoName,
       drawCalls: drawn.calls,
       triangles: drawn.triangles,
@@ -339,14 +351,18 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     if (steps > 0) keepProgress()
 
     const view = viewOf(state)
-    const frame: FrameInfo = { state, view, dt, now, photo: launch.photo != null || phase === 'title' }
+    const weather = weatherClock.at(state.t)
+    // 稲光が出た最初のフレームで、雷鳴を1回だけ鳴らす
+    const thunder = weather.strike != null && weather.strike !== lastStrike ? 1 : 0
+    lastStrike = weather.strike
+    const frame: FrameInfo = { state, view, dt, now, weather, photo: launch.photo != null || phase === 'title' }
     placeCamera()
     for (const part of parts) part.update(frame)
     drawn = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }
     renderer.info.reset()
     sky.render()
     const mine = state.vehicles.find((v) => v.id === state.player.vehicleId)
-    audio.frame(state, world, { time: launch.time, phase, dt, lite: quality.id === 'mobile' })
+    audio.frame(state, world, { time: launch.time, phase, dt, lite: quality.id === 'mobile', rain: weather.rain, thunder })
     audio.update({
       mode: state.mode,
       speed: state.player.speed,
@@ -356,7 +372,7 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
       wanted: phase === 'play' ? state.wanted.level : 0,
       time: launch.time,
     })
-    for (const fn of listeners) fn({ state, view })
+    for (const fn of listeners) fn({ state, view, weather })
     frames++
     handle.phase = phase
     // 数フレーム描いて、テクスチャも読み終えたら「絵が出そろった」とみなす

@@ -5,6 +5,7 @@
 import { areaDef, AREAS, type CraneSpec } from './areas'
 import mapJson from './data/shibuyaMap.json'
 import { BLOCK_STYLES, EXTRA_BOARDS } from './mapBlockStyles'
+import { SHINJUKU_BLOCK_STYLES, SHINJUKU_STREET_FURNITURE } from './mapShinjuku'
 import { EAST_SIGNALS } from './mapEastFront'
 import { inPhotoSight, nearPhotoStand, PHOTO_LAMPS, PHOTO_SIGNAL_CLEAR, PHOTO_STAND_CLEAR } from './mapPhoto'
 import { clamp, closestOnPolygon, closestOnSegment, cumulative, hash, headingOf, pointAlong, pointInPolygon } from './math'
@@ -468,14 +469,17 @@ export interface BlockStyle {
 
 export { BLOCK_STYLES }
 
-/** 目印の建物の表（形を作り込む建物＋外装を決めてある街区）。看板役はここに載る建物へ勝手な広告塔を立てない */
+/** 渋谷の目印の建物の表（形を作り込む建物＋外装を決めてある街区）。看板役はここに載る建物へ勝手な広告塔を立てない */
 export const LANDMARK_IDS: Record<number, LandmarkKind> = {
   ...Object.fromEntries(Object.keys(BLOCK_STYLES).map((id) => [id, 'styled' as const])),
   ...SHAPED_LANDMARKS,
   551944268: 'styled',
 }
 
-export const landmarkOf = (b: MapBuilding): LandmarkKind | null => LANDMARK_IDS[b.id] ?? null
+/** [areas] 全エリアの外装の表（OSM の id はエリアをまたいで重ならないので、1 つに合わせて引く） */
+const ALL_BLOCK_STYLES: Record<number, BlockStyle> = { ...BLOCK_STYLES, ...SHINJUKU_BLOCK_STYLES }
+
+export const landmarkOf = (b: MapBuilding): LandmarkKind | null => LANDMARK_IDS[b.id] ?? (SHINJUKU_BLOCK_STYLES[b.id] ? 'styled' : null)
 
 /** 描かない部品（外装を決めて建て直した棟の、宙に浮いた庇など） */
 // 551944268 は円筒の屋根の部品（円筒は renderCity109 が建てる。看板役がここへネオンを吊らないよう目印の表にも載せる）
@@ -484,10 +488,10 @@ export const landmarkOf = (b: MapBuilding): LandmarkKind | null => LANDMARK_IDS[
 const HIDDEN_PARTS = new Set([1126025809, 1126025810, 551944268, 9100000001, 355252207])
 export const isHiddenBuilding = (b: MapBuilding) => HIDDEN_PARTS.has(b.id)
 
-export const blockStyleOf = (b: MapBuilding): BlockStyle | null => BLOCK_STYLES[b.id] ?? null
+export const blockStyleOf = (b: MapBuilding): BlockStyle | null => ALL_BLOCK_STYLES[b.id] ?? null
 
 /** 建物に立てる屋上の広告塔の決めごと（外装を決めた街区のぶん＋形を作り込む建物に足すぶん） */
-export const boardSpecsOf = (b: MapBuilding): BoardSpec[] => BLOCK_STYLES[b.id]?.boards ?? EXTRA_BOARDS[b.id] ?? []
+export const boardSpecsOf = (b: MapBuilding): BoardSpec[] => ALL_BLOCK_STYLES[b.id]?.boards ?? EXTRA_BOARDS[b.id] ?? []
 
 /** 渋谷の駅の建て替え工事のクレーン（これまでの書き出し名。エリアごとの表は lib/gto/areas.ts の cranes） */
 export const CRANES: readonly CraneSpec[] = AREAS.shibuya.cranes
@@ -645,6 +649,8 @@ const STREET_FURNITURE: Record<string, { lamp: PropKind; every: number; tree: nu
   六本木通り: { lamp: 'lamp-plain', every: 34, tree: 0 },
   旧大山街道: { lamp: 'lamp-miyamasu', every: 28, tree: 0 },
   井ノ頭通り: { lamp: 'lamp-center', every: 22, tree: 0 },
+  // [areas] 新宿の通り（渋谷と同じ名前の通りは、上の決まりをそのまま使う）
+  ...SHINJUKU_STREET_FURNITURE,
 }
 const CENTER_GAI = '渋谷センター街'
 const PROP_GAP = 3.5

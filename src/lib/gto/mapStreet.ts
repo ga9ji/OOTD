@@ -3,10 +3,11 @@
 // 契約: 現地写真（109_09 / 109_10 / scramble_08 / center-gai_11 / miyamasuzaka_13）で、主な通りに面した壁の
 //       上の階に大きな広告面が 1 棟に 1〜2 枚載っている並びを、位置と大きさだけ起こす。絵柄は架空（renderCityBoards）。
 import { hash } from './math'
+import { SHINJUKU_MAIN_STREETS } from './mapShinjuku'
 import type { MapBuilding, MapRoad } from './types'
 
 /** 広告面を付ける通り（実名）。括弧書きの付いた名前は括弧の前で比べる */
-export const MAIN_STREETS = new Set(['道玄坂', '文化村通り', '井ノ頭通り', '神宮通り', '明治通り', '宮益坂', '公園通り', '渋谷センター街', '青山通り', '旧大山街道', '宇田川通り', '渋谷中央通り'])
+export const MAIN_STREETS = new Set(['道玄坂', '文化村通り', '井ノ頭通り', '神宮通り', '明治通り', '宮益坂', '公園通り', '渋谷センター街', '青山通り', '旧大山街道', '宇田川通り', '渋谷中央通り', ...SHINJUKU_MAIN_STREETS])
 
 /** 広告面の絵の種類の数（renderCityBoards の壁面用の絵） */
 export const WALL_AD_ARTS = 12

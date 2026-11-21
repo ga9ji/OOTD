@@ -21,6 +21,7 @@ import { buildFaceDecos, buildPinkStair, buildWestSite } from './renderCityFacad
 import { buildLattice } from './renderCityLattice'
 import { buildBrickWalks, buildGuardFace } from './renderCityVista'
 import { buildLandmark } from './renderCityLandmarks'
+import { buildArch, createArchTexture } from './renderCityArch'
 import { buildGate, createGateTexture } from './renderCityGate'
 import { buildGuardSoffit } from './renderCityGuard'
 import { buildProps } from './renderCityProps'
@@ -238,6 +239,17 @@ export function createCityRenderer(ctx: RenderCtx): RenderPart {
   const gateTexture = createGateTexture()
   disposables.push(gateTexture)
   add(gate.art, new THREE.MeshLambertMaterial({ map: gateTexture, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { cast: true })
+  // [areas] 歌舞伎町の通りの入口の赤い門（新宿だけ。通りが地図に無ければ空）。板の字は夜に自分で光る
+  const arch = buildArch(world, quality.props)
+  add(arch.solid, new THREE.MeshLambertMaterial({ vertexColors: true }), { cast: true })
+  add(arch.glow, glowMaterial, { receive: false })
+  let archMaterial: THREE.MeshLambertMaterial | null = null
+  if (!arch.art.empty) {
+    const archTexture = createArchTexture()
+    disposables.push(archTexture)
+    archMaterial = new THREE.MeshLambertMaterial({ map: archTexture, emissiveMap: archTexture, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.15 })
+    add(arch.art, archMaterial, { receive: false })
+  }
   // 行灯の街灯の通り名の札の字（ゲートと同じ絵の字を貼る）
   add(props.art, new THREE.MeshLambertMaterial({ map: gateTexture, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { receive: false })
 
@@ -252,6 +264,7 @@ export function createCityRenderer(ctx: RenderCtx): RenderPart {
     boardMaterial.emissiveIntensity = 0.08 + l.neon * 0.45
     glowMaterial.emissiveIntensity = l.lampsOn ? 1.6 : 0.15
     soffitMaterial.emissiveIntensity = l.lampsOn ? 0.24 : 0.18
+    if (archMaterial) archMaterial.emissiveIntensity = 0.12 + l.neon * 0.9
   }
   apply()
   return {

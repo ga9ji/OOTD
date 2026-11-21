@@ -52,6 +52,13 @@ export interface AreaDef {
    * 置くか。これらは地図ではなく固定の座標に置くので、ほかのエリアでは出さない。
    */
   shibuyaSet: boolean
+  /**
+   * 看板が密な街の中心 [x, z]（駅前と繁華街）。看板役は、いちばん近い中心からの距離で看板の多さを決める
+   * （300m 以内は多く、軽量の配置で残すのも中心の近くだけ）。渋谷は原点だけ。
+   */
+  hubs: readonly (readonly [x: number, z: number])[]
+  /** ネオンをとくに多く灯す一帯（中心と半径 m）。この中では、ネオン文字と軒のネオン管を付ける棟が増える */
+  neonZones: readonly { x: number; z: number; r: number }[]
 }
 
 export const AREAS: Record<AreaId, AreaDef> = {
@@ -71,17 +78,26 @@ export const AREAS: Record<AreaId, AreaDef> = {
     ],
     scramble: true,
     shibuyaSet: true,
+    hubs: [[0, 0]],
+    neonZones: [],
   },
   shinjuku: {
     id: 'shinjuku',
     name: '新宿',
     // 東口の駅前広場。新宿通りの交差点のほうを向いて立つ
     spawn: { x: -30, z: 22, heading: 0.9 },
-    // 弧は、新宿の地図を焼いてから、建物に当たらない所へ決める（いまは渋谷と同じ形の仮の弧）
-    title: { radius: 150, height: 78, mid: 248, swing: 20, rate: 0.11, lookY: 14, fov: 50 },
+    // 歌舞伎町の真ん中を、東の空から見下ろす（奥に、街でいちばん高い塔が立つ）
+    title: { cx: 0, cz: -250, radius: 150, height: 78, mid: 90, swing: 20, rate: 0.11, lookY: 20, fov: 50 },
     cranes: [],
     scramble: false,
     shibuyaSet: false,
+    // 東口の交差点と、歌舞伎町の真ん中
+    hubs: [
+      [0, 0],
+      [20, -290],
+    ],
+    // 歌舞伎町（靖国通りの北）
+    neonZones: [{ x: 40, z: -295, r: 185 }],
   },
 }
 
@@ -89,6 +105,19 @@ export const AREAS: Record<AreaId, AreaDef> = {
 export const AREA_IDS: readonly AreaId[] = ['shibuya', 'shinjuku']
 
 export const isAreaId = (v: unknown): v is AreaId => typeof v === 'string' && Object.prototype.hasOwnProperty.call(AREAS, v)
+
+/** いちばん近い「看板が密な中心」までの距離 m */
+export function hubDistance(of: Pick<GtoWorld, 'area'> | AreaId, x: number, z: number): number {
+  let best = Infinity
+  for (const [hx, hz] of areaDef(of).hubs) best = Math.min(best, Math.hypot(x - hx, z - hz))
+  return best
+}
+
+/** ネオンをとくに多く灯す一帯の中か（中なら 1、外なら 0） */
+export function neonBoost(of: Pick<GtoWorld, 'area'> | AreaId, x: number, z: number): number {
+  for (const zone of areaDef(of).neonZones) if (Math.hypot(x - zone.x, z - zone.z) < zone.r) return 1
+  return 0
+}
 
 /** 世界（か id）から、そのエリアの決まりごとを引く。エリアの分からない世界（テスト用の小さな地図など）は渋谷として扱う */
 export const areaDef = (of: Pick<GtoWorld, 'area'> | AreaId): AreaDef => AREAS[typeof of === 'string' ? of : of.area] ?? AREAS.shibuya

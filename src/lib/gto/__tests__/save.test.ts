@@ -41,6 +41,7 @@ describe('gto save: 進行を取り出して戻す', () => {
 
   it('あらましは、手持ちの服の数と、達成した依頼の数／全部の数（全エリアの合計）', () => {
     expect(saveSummary(save({ done: [first, second] }))).toEqual({ cash: 4200, outfits: 3, missions: 2, missionTotal: ALL_MISSIONS.length })
+    expect(ALL_MISSIONS.length).toBeGreaterThan(MISSIONS.length)
   })
 })
 

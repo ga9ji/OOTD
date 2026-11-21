@@ -3,7 +3,7 @@
 // 契約: 渋谷は、交差点の西北西の空から、交差点とその奥の駅の高層棟を見下ろし、同じ弧の上をゆっくり往復する。
 //       駅のまわりを 1 周させると、同じ高さにある高層棟とクレーンの中を通り抜けてしまうので、回さない。
 //       弧（lib/gto/areas.ts の title）は、エリアごとに、建物・クレーンに近づかず、見る先までの見通しも塞がれない範囲に
-//       収めてある（__tests__/titleCamera.test.ts が確かめる）。
+//       収めてある（__tests__/titleCamera.test.ts と areaShinjuku.test.ts が確かめる）。
 import { AREAS, type TitleCameraSpec } from './areas'
 import { DEG } from './math'
 

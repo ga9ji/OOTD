@@ -6,6 +6,7 @@
 //             光の部品（renderSky.ts）は先頭の quality.maxSigns 枚だけを光だまりにするので、この並びを変えない。
 //       密度は渋谷の夜の写真から写した（雑居ビル1棟に袖看板 5〜10 枚・間口ごとに店の看板・屋上に広告塔）。
 //       描画（renderSigns.ts）は Sign と NeonTube の配列を絵にするだけ。
+import { hubDistance, neonBoost } from './areas'
 import { landmarkOf } from './map'
 import { clamp, dirOf, headingOf, pointInPolygon } from './math'
 import { ADS, NEON_COLORS, NEON_WORDS, SHOPS, UPPER_SHOPS, type Shop } from './signageCatalog'
@@ -296,6 +297,8 @@ interface Lot {
   rank: number
   /** 袖看板などの密度（0..1）。駅前と名前のある通りで高い */
   dense: number
+  /** [areas] ネオンの多い一帯（歌舞伎町）の中なら 1。ネオン文字を付ける棟が増える */
+  glow: number
   heading: number
   /** 袖看板を積める高さの上限（建物の基準の高さから）。駅前のビジョンのビルは画面の下まで */
   bladeTop: number
@@ -308,7 +311,7 @@ const along = (f: Face, t: number, out: number) => ({ x: f.ax + (f.bx - f.ax) * 
 
 /** 壁の番号 fi の面に、筆記体のネオン文字を出すか（建物ごとに決まる。駅前と名前のある通りで 2 棟に 1 棟ほど） */
 const hasNeonWord = (lot: Lot) =>
-  lot.fi === 0 && lot.b.h >= SIGNAGE_TUNING.neonMinHeight && lot.b.h <= SIGNAGE_TUNING.bladeMaxBuilding && lot.face.len >= 7 && mix(lot.b.id, 211) < 0.12 + lot.dense * 0.4
+  lot.fi === 0 && lot.b.h >= SIGNAGE_TUNING.neonMinHeight && lot.b.h <= SIGNAGE_TUNING.bladeMaxBuilding && lot.face.len >= 7 && mix(lot.b.id, 211) < 0.12 + lot.dense * 0.4 + lot.glow * 0.3
 
 /** 筆記体のネオン文字。店の看板の上（2〜3階の壁）に、壁から少し浮かせて付ける */
 function neonSigns(lot: Lot): Ranked[] {
@@ -497,10 +500,13 @@ function buildingSigns(world: GtoWorld, b: MapBuilding): Ranked[] {
   const homes = b.use === 'apartments' || b.use === 'residential'
   const faces = pickFaces(streetFaces(world, b), tune.maxFaces)
   return faces.flatMap((face, fi) => {
-    const rank = Math.hypot((face.ax + face.bx) / 2, (face.az + face.bz) / 2)
+    // [areas] 街の中心（駅前。新宿は歌舞伎町の真ん中も）からの距離
+    const mx = (face.ax + face.bx) / 2
+    const mz = (face.az + face.bz) / 2
+    const rank = hubDistance(world, mx, mz)
     // 駅前（300m 以内）と名前のある通りは看板が多く、外れと住宅は少ない
     const dense = clamp((face.named ? 0.62 : 0.3) + (rank < 300 ? 0.38 : rank < 420 ? 0.12 : 0) - (homes ? 0.4 : 0), 0, 1)
-    const lot: Lot = { world, b, face, fi, rank, dense, heading: headingOf(face.nx, face.nz), bladeTop: landmark === 'vision' ? b.h * 0.45 - 0.6 : b.h - 0.9 }
+    const lot: Lot = { world, b, face, fi, rank, dense, glow: homes ? 0 : neonBoost(world, mx, mz), heading: headingOf(face.nx, face.nz), bladeTop: landmark === 'vision' ? b.h * 0.45 - 0.6 : b.h - 0.9 }
     const bayW = tune.bay * (0.85 + mix(b.id, fi, 41) * 0.4)
     const bays = Math.max(1, Math.round(face.len / bayW))
     // 目印の建物は街の部品が外装を作る。ビジョンのビルは画面の下に袖看板まで、ほかは足元の店の看板だけにする
@@ -554,9 +560,11 @@ export function buildNeonTubes(world: GtoWorld, detail: SignDetail = 'full'): Ne
     if (!isSignable(world, b, bi) || landmarkOf(b) != null || b.use === 'apartments' || b.use === 'residential') return
     const face = streetFaces(world, b)[0]
     if (!face) return
-    const rank = Math.hypot((face.ax + face.bx) / 2, (face.az + face.bz) / 2)
-    // 駅前の名前のある通りでは、ほぼ2棟に1棟の軒に管が走る
-    const chance = (face.named ? 0.4 : 0.24) + (rank < 300 ? 0.16 : 0)
+    const mx = (face.ax + face.bx) / 2
+    const mz = (face.az + face.bz) / 2
+    const rank = hubDistance(world, mx, mz)
+    // 駅前の名前のある通りでは、ほぼ2棟に1棟の軒に管が走る。[areas] ネオンの多い一帯（歌舞伎町）では、さらに増やす
+    const chance = (face.named ? 0.4 : 0.24) + (rank < 300 ? 0.16 : 0) + neonBoost(world, mx, mz) * 0.3
     if (mix(b.id, 181) > (detail === 'full' ? chance : chance * 0.4)) return
     const color = NEON_COLORS[Math.floor(mix(b.id, 191) * NEON_COLORS.length)]
     const second = NEON_COLORS[Math.floor(mix(b.id, 193) * NEON_COLORS.length)]

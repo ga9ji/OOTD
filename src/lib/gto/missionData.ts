@@ -301,8 +301,168 @@ export const MISSIONS: MissionDef[] = [
   },
 ]
 
-/** 新宿（東口・歌舞伎町・新宿三丁目）の依頼 */
-export const SHINJUKU_MISSIONS: MissionDef[] = []
+/** 新宿（東口・歌舞伎町・新宿三丁目）の依頼。渋谷の依頼とは別の筋で、最初の 1 本は着いたときから開いている */
+export const SHINJUKU_MISSIONS: MissionDef[] = [
+  {
+    // 奪う → 時間内に歩いて届ける → 車をつかまえる → 車で届ける（新宿の最初の 1 本。東口から歌舞伎町の奥まで、街をひと通り見せる）
+    id: 'shinjuku-first-neon',
+    title: 'ネオンの下の初仕事',
+    giver: '看板描きのアカリ',
+    brief: '「今夜ともす看板の前に立つ、見本の一着がほしいの。東口で見つくろって、セントラルロードまで持ってきて」',
+    hook: '看板描きのアカリが、東口の広場で人を探している',
+    start: { x: -18, z: 8 },
+    steps: [
+      { kind: 'steal', count: 1, text: '東口で通行人の服を1着いただく', accent: '服を1着' },
+      {
+        kind: 'goto',
+        x: -21.7,
+        z: -164.7,
+        radius: 8,
+        timeLimit: 150,
+        text: '靖国通りを渡って、セントラルロードの入口へ歩く',
+        accent: 'セントラルロードの入口',
+        say: '「いい色。靖国通りを渡った先、セントラルロードの入口で待ってる。看板に灯が入る前にね」',
+      },
+      {
+        kind: 'vehicle',
+        addTime: 30,
+        text: '車を1台つかまえる',
+        accent: '車',
+        say: '「ぴったり。次は花道通りの店まで見せに行くから、車をつかまえてきて」',
+      },
+      {
+        kind: 'goto',
+        x: 148.1,
+        z: -323.4,
+        radius: 10,
+        vehicle: true,
+        addTime: 60,
+        text: '花道通りの店先まで乗りつける',
+        accent: '花道通りの店先',
+        say: '「歌舞伎町をぐるっと回って、花道通りまで。店の前に着けてくれればいいわ」',
+      },
+    ],
+    reward: 4000,
+    timeBonus: 20,
+  },
+  {
+    // 車をつかまえ、時間内に 2 か所を回り、最後は降りて手渡す
+    id: 'yasukuni-green-wave',
+    title: '靖国通り、ぜんぶ青で',
+    giver: '花屋のミドリ',
+    brief: '「開店祝いの花が二つ、まだ店にあるの。しおれる前に届けたい。足は現地調達でお願い」',
+    hook: '花屋のミドリが、区役所通りの入口で運び手を探している',
+    after: 'shinjuku-first-neon',
+    start: { x: 160, z: -72 },
+    steps: [
+      { kind: 'vehicle', text: '車を1台調達する', accent: '車' },
+      {
+        kind: 'goto',
+        x: 449,
+        z: -1,
+        radius: 12,
+        vehicle: true,
+        timeLimit: 85,
+        text: '靖国通りを東へ走りきる。花がしおれる前に',
+        accent: '靖国通り',
+        say: '「一つめは靖国通りをまっすぐ東。信号は、ぜんぶ青だと思って」',
+      },
+      {
+        kind: 'goto',
+        x: 262,
+        z: 140,
+        radius: 10,
+        vehicle: true,
+        addTime: 45,
+        text: '明治通りを下って、新宿通りの角の店へ回る',
+        accent: '新宿通りの角の店',
+        say: '「二つめは新宿通りの角。明治通りを下ればすぐよ」',
+      },
+      {
+        kind: 'goto',
+        x: 268,
+        z: 134,
+        radius: 12,
+        onFoot: true,
+        addTime: 10,
+        text: '車を降りて、店主に花を手渡す',
+        accent: '店主',
+        say: '「着いたのね。車を降りて、店主に直接渡して」',
+      },
+    ],
+    reward: 9000,
+    timeBonus: 50,
+  },
+  {
+    // 尾行して、見回りをかわして場所を押さえ、取り返して逃げる
+    id: 'shiki-no-michi-tail',
+    title: '四季の路の忘れ物',
+    giver: 'バーテンのシズカ',
+    brief: '「常連の上着を持っていった客がいるの。四季の路を抜けて帰るはず。気づかれないように尾けて」',
+    hook: 'バーテンのシズカが、四季の路の入口で相談があるらしい',
+    after: 'shinjuku-first-neon',
+    start: { x: 170, z: -102 },
+    steps: [
+      {
+        kind: 'tail',
+        path: [176, -107.9, 177.1, -110.8, 187.2, -118.3, 201.1, -130.6, 211.7, -147, 218.4, -163.9, 221.6, -171.6, 226, -179.8, 230, -199.4, 238.9, -223.9, 246.7, -245.6, 258.8, -261.8, 273.7, -272.9, 285.1, -279.4],
+        speed: 2.6,
+        delay: 3,
+        near: 9,
+        far: 55,
+        text: '上着を持った客を尾ける。近づきすぎるな、見失うな',
+        accent: '上着を持った客',
+      },
+      {
+        kind: 'goto',
+        x: 291,
+        z: -281,
+        radius: 5,
+        // 路地の出口を、連れの男が行ったり来たりしている
+        guards: [{ path: [300, -292, 300, -296], speed: 1.2, radius: 4 }],
+        text: '四季の路の出口に立つ。連れの男の赤い輪に入るな',
+        accent: '四季の路の出口',
+        say: '「そこで待ち合わせね。出口まで行って、場所を押さえて。連れには見つからないで」',
+      },
+      {
+        kind: 'steal',
+        count: 1,
+        text: '上着を1着取り返す',
+        accent: '上着を1着',
+        say: '「押さえた。上着を取り返して。近くを歩いてる人ので、たぶん合ってる」',
+      },
+      { kind: 'escape', text: '手配が消えるまで逃げきる', accent: '手配', say: '「通報された！撒いたら終わり。走って」' },
+    ],
+    reward: 11000,
+  },
+  {
+    // 時間内に奪ってそろえ、車をつかまえ、しわを付けずに運ぶ
+    id: 'sanchome-fitting',
+    title: '三丁目の衣装合わせ',
+    giver: '舞台衣装のトワ',
+    brief: '「今夜の舞台の衣装が3着足りない。末広通りで借りてきて、花道通りの小屋まで運んで。しわは厳禁」',
+    hook: '舞台衣装のトワが、末広通りで頭を抱えている',
+    after: 'yasukuni-green-wave',
+    start: { x: 335.7, z: 136 },
+    steps: [
+      { kind: 'steal', count: 3, timeLimit: 90, text: '服を3着いただく', accent: '服を3着' },
+      { kind: 'vehicle', text: '車に乗る', accent: '車', say: '「そろったね。車で運んで。ぶつけるたびに、しわが増える」' },
+      {
+        kind: 'goto',
+        x: 291,
+        z: -300.6,
+        radius: 12,
+        vehicle: true,
+        fragile: 4,
+        text: '花道通りの小屋へ届ける。車をぶつけるな',
+        accent: '花道通りの小屋',
+        say: '「小屋は花道通りの東の端。開演前だから、そっとね」',
+      },
+    ],
+    reward: 14000,
+    cleanBonus: 3000,
+  },
+]
 
 const BY_AREA: Record<AreaId, MissionDef[]> = { shibuya: MISSIONS, shinjuku: SHINJUKU_MISSIONS }
 

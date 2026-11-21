@@ -1,27 +1,29 @@
 #!/usr/bin/env node
-// Grand Theft Outfit: 渋谷駅周辺の地図を OpenStreetMap + 国土地理院 標高タイルから
-// ゲーム用 JSON（src/lib/gto/data/shibuyaMap.json）に焼き込む。
+// Grand Theft Outfit: 街（渋谷駅周辺・新宿駅東口）の地図を OpenStreetMap + 国土地理院 標高タイルから
+// ゲーム用 JSON（src/lib/gto/data/<エリア>Map.json）に焼き込む。
 //
-//   node scripts/gto-bake-map.mjs <overpass.json> <demタイルのディレクトリ> [出力.json]
+//   node scripts/gto-bake-map.mjs [--area shibuya|shinjuku] <overpass.json> <demタイルのディレクトリ> [出力.json]
 //
+// - --area        : 焼くエリア（省くと shibuya）。原点・範囲・補正表・出力先はエリアごとに BAKE_AREAS が持つ。
 // - overpass.json : Overpass API の out:json（way + 参照ノード）。
 // - dem ディレクトリ: 国土地理院 標高タイル dem5a の z15 テキスト
 //   （ファイル名 dem5a-15-<x>-<y>.txt。256x256 の CSV、欠測は "e"）。
 // 生データはリポジトリに入れない。出力 JSON だけをコミットする。
 //
-// 座標系: スクランブル交差点中心（OSM node 291758776）を原点とするローカル座標。
+// 座標系: エリアごとの原点（渋谷はスクランブル交差点中心 = OSM node 291758776、
+//   新宿は東口の交差点「新宿駅東口」= OSM node 472382995）からのローカル座標。
 //   x = 東が +（m）、z = 南が +（m。北は -z）、y = 原点地表からの標高差（m、上が +）。
 // 地図データ © OpenStreetMap contributors (ODbL)。標高は国土地理院 基盤地図情報 数値標高モデル。
 
 import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CORNER_CUTS, DROP_BUILDINGS, EXTRA_BUILDINGS, HEIGHT_OVERRIDES, HEIGHT_OVERRIDES_BY_NAME } from './lib/gto-bake-tables.mjs'
+import { CORNER_CUTS, DROP_BUILDINGS, EXTRA_BUILDINGS, HEIGHT_OVERRIDES, HEIGHT_OVERRIDES_BY_NAME, SHINJUKU_TABLES } from './lib/gto-bake-tables.mjs'
 
 export { CORNER_CUTS, DROP_BUILDINGS, EXTRA_BUILDINGS, HEIGHT_OVERRIDES, HEIGHT_OVERRIDES_BY_NAME }
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const DEFAULT_OUT = resolve(HERE, '../src/lib/gto/data/shibuyaMap.json')
+const DATA_DIR = resolve(HERE, '../src/lib/gto/data')
 
 // ---- 範囲と原点 -------------------------------------------------------------
 export const ORIGIN = { lat: 35.6594821, lon: 139.7005723 } // スクランブル交差点中心
@@ -33,17 +35,24 @@ const SIZE_LIMIT = 500 * 1024
 
 // 緯度1度・経度1度あたりの長さ（WGS84 の級数近似）。原点の緯度で固定する。
 const rad = (d) => (d * Math.PI) / 180
-const PHI = rad(ORIGIN.lat)
-export const M_PER_DEG_LAT =
-  111132.92 - 559.82 * Math.cos(2 * PHI) + 1.175 * Math.cos(4 * PHI) - 0.0023 * Math.cos(6 * PHI)
-export const M_PER_DEG_LON =
-  111412.84 * Math.cos(PHI) - 93.5 * Math.cos(3 * PHI) + 0.118 * Math.cos(5 * PHI)
-
-export const toLocal = (lat, lon) => [
-  (lon - ORIGIN.lon) * M_PER_DEG_LON,
-  -(lat - ORIGIN.lat) * M_PER_DEG_LAT,
-]
-export const toLatLon = (x, z) => [ORIGIN.lat - z / M_PER_DEG_LAT, ORIGIN.lon + x / M_PER_DEG_LON]
+/** 原点を決めたときの、緯度経度とローカル座標の行き来 */
+export const projectionOf = (origin) => {
+  const phi = rad(origin.lat)
+  const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * phi) + 1.175 * Math.cos(4 * phi) - 0.0023 * Math.cos(6 * phi)
+  const mPerDegLon = 111412.84 * Math.cos(phi) - 93.5 * Math.cos(3 * phi) + 0.118 * Math.cos(5 * phi)
+  return {
+    mPerDegLat,
+    mPerDegLon,
+    toLocal: (lat, lon) => [(lon - origin.lon) * mPerDegLon, -(lat - origin.lat) * mPerDegLat],
+    toLatLon: (x, z) => [origin.lat - z / mPerDegLat, origin.lon + x / mPerDegLon],
+  }
+}
+// 渋谷の変換（これまでの書き出し名。テストと道具が使う）
+const SHIBUYA_PROJECTION = projectionOf(ORIGIN)
+export const M_PER_DEG_LAT = SHIBUYA_PROJECTION.mPerDegLat
+export const M_PER_DEG_LON = SHIBUYA_PROJECTION.mPerDegLon
+export const toLocal = SHIBUYA_PROJECTION.toLocal
+export const toLatLon = SHIBUYA_PROJECTION.toLatLon
 
 const r1 = (v) => Math.round(v * 10) / 10
 const num = (s) => {
@@ -123,9 +132,9 @@ const flatArea = (pts) => {
 }
 
 /** 通りに面した低い棟を、通りごとの下限まで上げる。入力は変えず、新しい配列を返す */
-export function raiseStreetWalls(buildings, roads, keep = new Set()) {
+export function raiseStreetWalls(buildings, roads, keep = new Set(), wallMin = STREET_WALL_MIN) {
   const streets = roads
-    .map((r) => ({ r, min: STREET_WALL_MIN[(r.name ?? '').replace(/\(.*$/, '')] }))
+    .map((r) => ({ r, min: wallMin[(r.name ?? '').replace(/\(.*$/, '')] }))
     .filter((s) => s.min != null && !s.r.bridge && !s.r.tunnel)
   return buildings.map((b) => {
     if (keep.has(b.id) || b.hasParts || b.roof || b.part || b.minH || STREET_WALL_SKIP_USE.has(b.use) || STREET_WALL_SKIP_ID.has(b.id)) return b
@@ -360,7 +369,105 @@ const stitchRings = (ways) => {
   return rings
 }
 
-export const bake = (osm, elevationAt) => {
+// 新宿の線路面の高さの推定（原点＝東口の交差点の地表からの差、m）。
+// JR の線路は東口の地表とほぼ同じ高さを南北に水平に通り、北の大ガードでは靖国通りのほうが線路の下へ潜る。
+// 西武新宿線も駅の手前まで同じ高さの盛土。地表より下には潜らせない（bake の共通の決まり）ので、ここは水平の 1 本だけ。
+// line は描画の色分けに使う名前で、渋谷の JR と同じ 'jr' にそろえる（地下の路線は焼き込まない）。
+const SHINJUKU_RAIL_PROFILES = [{ line: 'jr', test: () => true, y: () => 1.8 }]
+/** 新宿で地表に出さない道: 駅の構内の通路とホーム（名前に駅・番線・ホームが入る歩道）、バスターミナルへ上がる高架の構内道路 */
+const shinjukuDropRoad = (t, { foot, layer }) =>
+  (foot && /駅|番線|ホーム|改札|のりかえ/.test(t.name ?? '')) || (t.highway === 'service' && !!t.bridge && layer >= 2)
+/**
+ * 新宿の道の名前のうち、画面に出してよい「通りの名前」だけを残す（出入口・施設・連絡通路の名前は、建物の実名を含むので落とす）。
+ * 「新宿通り;新宿三丁目」のように ; で注記が付く物は、前の部分だけを見る。
+ */
+const SHINJUKU_STREET_NAME = /(通り|街道|坂|横丁|ロード|小路|番街|の路|の抜け道|線(\(連絡路\))?)$/
+const shinjukuRoadName = (name) => {
+  const first = (name ?? '').split(';')[0].trim()
+  return SHINJUKU_STREET_NAME.test(first) ? first : null
+}
+/** 新宿で地表に建てない建物: 地下街（location=underground か layer が負。靖国通りの真下の地下街が、通りを塞ぐ箱になる） */
+const shinjukuDropBuilding = (t) => t.location === 'underground' || (num(t.layer) ?? 0) < 0
+/**
+ * 新宿の高架の床の高さ。線路をまたぐ甲州街道の陸橋は、標高データがすでに橋の取り付けの坂を含んでいるので、
+ * 「地上の道として扱う低い橋」（map.ts の GROUND_BRIDGE_DECK = 6 以下）に収めて、車で渡れる道にする。
+ */
+const shinjukuRoadDeck = (kind, layer) => (DRIVABLE.has(kind) && kind !== 'motorway' && kind !== 'motorway_link' ? Math.min(6, 6 * Math.max(1, layer)) : null)
+
+// ---- エリア ------------------------------------------------------------------
+// 原点・範囲・出力先・補正表・目印の場所を、エリアごとに持つ。bake() はここに書いた物だけを見る。
+// spots は「原点の場所」を最初に置く（ゲームの出発地点や題名の画面のカメラが、ここからの相対で決まる）。
+export const BAKE_AREAS = {
+  shibuya: {
+    id: 'shibuya',
+    title: 'Shibuya station area (Grand Theft Outfit)',
+    out: 'shibuyaMap.json',
+    origin: ORIGIN,
+    bbox: BBOX,
+    roadWidthMin: ROAD_WIDTH_MIN,
+    streetWallMin: STREET_WALL_MIN,
+    railProfiles: RAIL_PROFILES,
+    tables: { HEIGHT_OVERRIDES, HEIGHT_OVERRIDES_BY_NAME, EXTRA_BUILDINGS, DROP_BUILDINGS, CORNER_CUTS },
+    spots: ({ roadEnds, nearestViaduct, spotOfBuilding }) => [
+      { key: 'scramble', x: 0, z: 0, y: 0 },
+      ...roadEnds('dogenzaka', /^道玄坂$/),
+      ...roadEnds('center-gai', /渋谷センター街/),
+      ...roadEnds('miyamasuzaka', /^宮益坂$/),
+      ...roadEnds('koen-dori', /公園通り/),
+      ...roadEnds('bunkamura-dori', /^文化村通り$/),
+      ...nearestViaduct('viaduct-jr', /山手線/, 'jr'),
+      ...nearestViaduct('viaduct-ginza', /銀座線/, 'ginza'),
+      ...spotOfBuilding('tower-scramble-square', /スクランブルスクエア/),
+      ...spotOfBuilding('tower-hikarie', /ヒカリエ/),
+      ...spotOfBuilding('tower-stream', /^渋谷ストリーム$/),
+      ...spotOfBuilding('tower-fukuras', /フクラス/),
+      ...spotOfBuilding('tower-sakura-stage', /Sakura Stage SHIBUYA Tower/),
+      ...spotOfBuilding('tower-cerulean', /セルリアンタワー/),
+      ...spotOfBuilding('mark-city', /マークシティ イースト/),
+      ...spotOfBuilding('bldg-109', /^Shibuya 109$/),
+      ...spotOfBuilding('bldg-magnet', /MAGNET/),
+      ...spotOfBuilding('bldg-parco', /Parco/i),
+      ...spotOfBuilding('miyashita-park', /^MIYASHITA PARK$/),
+    ],
+  },
+  // 新宿駅の東口・歌舞伎町・新宿三丁目（渋谷と同じ広さ）。原点は東口の交差点「新宿駅東口」（OSM node 472382995）
+  shinjuku: {
+    id: 'shinjuku',
+    title: 'Shinjuku east side (Grand Theft Outfit)',
+    out: 'shinjukuMap.json',
+    origin: { lat: 35.6922507, lon: 139.7017709 },
+    bbox: { south: 35.688, north: 35.696, west: 139.6975, east: 139.708 },
+    roadWidthMin: SHINJUKU_TABLES.ROAD_WIDTH_MIN,
+    streetWallMin: SHINJUKU_TABLES.STREET_WALL_MIN,
+    railProfiles: SHINJUKU_RAIL_PROFILES,
+    dropRoad: shinjukuDropRoad,
+    roadName: shinjukuRoadName,
+    dropBuilding: shinjukuDropBuilding,
+    roadDeck: shinjukuRoadDeck,
+    tables: SHINJUKU_TABLES,
+    spots: ({ roadEnds, spotOfBuilding }) => [
+      { key: 'east-exit', x: 0, z: 0, y: 0 },
+      ...roadEnds('shinjuku-dori', /^新宿通り$/),
+      ...roadEnds('yasukuni-dori', /^靖国通り$/),
+      ...roadEnds('meiji-dori', /^明治通り$/),
+      ...roadEnds('hanamichi-dori', /^花道通り$/),
+      ...roadEnds('kuyakusho-dori', /^区役所通り$/),
+      ...SHINJUKU_TABLES.SPOT_BUILDINGS.flatMap(([key, re]) => spotOfBuilding(key, re)),
+    ],
+  },
+}
+
+/**
+ * Overpass の JSON と標高の関数から、ゲーム用の地図を作る。
+ * area は BAKE_AREAS のどれか（省くと渋谷。これまでと同じ出力）。
+ */
+export const bake = (osm, elevationAt, area = BAKE_AREAS.shibuya) => {
+  const ORIGIN = area.origin
+  const BBOX = area.bbox
+  const { toLocal, toLatLon, mPerDegLat: M_PER_DEG_LAT, mPerDegLon: M_PER_DEG_LON } = projectionOf(ORIGIN)
+  const { HEIGHT_OVERRIDES, HEIGHT_OVERRIDES_BY_NAME, EXTRA_BUILDINGS, DROP_BUILDINGS, CORNER_CUTS } = area.tables
+  const ROAD_WIDTH_MIN = area.roadWidthMin
+  const RAIL_PROFILES = area.railProfiles
   const nodes = new Map()
   const ways = []
   const relations = []
@@ -403,6 +510,7 @@ export const bake = (osm, elevationAt) => {
     if (foot && level > 0 && !t.bridge) return false
     if (t.highway === 'service' && (layer < 0 || t.service === 'parking_aisle')) return false
     if (t.access === 'private' && foot) return false
+    if (area.dropRoad?.(t, { foot, layer })) return false
     return true
   }
   const roadWays = ways.filter(isSurfaceRoad)
@@ -424,19 +532,21 @@ export const bake = (osm, elevationAt) => {
     const ids = w.nodes.filter((id) => nodes.has(id))
     const pts = ids.map(local)
     const keep = ids.map((id) => (useCount.get(id) ?? 0) > 1)
+    // 道の名前は画面（HUD の地名）に出る。エリアが決まりを持つときは、通りの名前だけを残す
+    const name = area.roadName ? area.roadName(t.name) : t.name
     return clipLine(pts, keep, clipB).map((seg, i) => ({
       id: w.id,
       ...(i > 0 ? { seg: i } : {}),
       kind,
-      ...(t.name ? { name: t.name } : {}),
-      ...(t['name:en'] ? { nameEn: t['name:en'] } : {}),
+      ...(name ? { name } : {}),
+      ...(name && t['name:en'] ? { nameEn: t['name:en'] } : {}),
       width: r1(width),
       ...(lanes ? { lanes } : {}),
       ...(DRIVABLE.has(kind) ? { drive: 1 } : {}),
       ...(t.oneway === 'yes' ? { oneway: 1 } : t.oneway === '-1' ? { oneway: -1 } : {}),
       ...(crossing ? { crossing: 1 } : {}),
       ...(t.footway === 'sidewalk' ? { sidewalk: 1 } : {}),
-      ...(bridge ? { bridge: 1, deck: roadDeck(kind, layer) } : {}),
+      ...(bridge ? { bridge: 1, deck: area.roadDeck?.(kind, layer) ?? roadDeck(kind, layer) } : {}),
       ...(tunnel ? { tunnel: 1 } : {}),
       ...(layer ? { layer } : {}),
       pts: flat(simplify(seg.pts, crossing ? 0.3 : 0.5, seg.keep)),
@@ -488,7 +598,7 @@ export const bake = (osm, elevationAt) => {
     if (ids.length < 4 || ids[0] !== ids[ids.length - 1]) return null
     return ids.slice(0, -1).map(local)
   }
-  const isBuilding = (t) => t && ((t.building && t.building !== 'no') || t['building:part'])
+  const isBuilding = (t) => t && ((t.building && t.building !== 'no') || t['building:part']) && !area.dropBuilding?.(t)
   const rawBuildings = [
     ...ways.filter((w) => isBuilding(w.tags)).map((w) => ({ id: w.id, tags: w.tags, ring: ringOfWay(w) })),
     ...relations
@@ -605,7 +715,7 @@ export const bake = (osm, elevationAt) => {
   // 写真から足す建物は、隣の目印の建物（needs）が地図にあるときだけ
   const bakedIds = new Set(builtBuildings.map((b) => b.id))
   const extras = EXTRA_BUILDINGS.filter((b) => bakedIds.has(b.needs)).map(({ needs: _needs, ...b }) => b)
-  const buildings = cutCorners([...raiseStreetWalls(builtBuildings, roads, measuredIds), ...extras]).sort((a, b) => b.h - a.h)
+  const buildings = cutCorners([...raiseStreetWalls(builtBuildings, roads, measuredIds, area.streetWallMin), ...extras], CORNER_CUTS).sort((a, b) => b.h - a.h)
 
   // ---- 横断歩道・信号（点） ----
   const inB = (p) => p[0] >= bounds.minX && p[0] <= bounds.maxX && p[1] >= bounds.minZ && p[1] <= bounds.maxZ
@@ -680,31 +790,11 @@ export const bake = (osm, elevationAt) => {
       .sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0]
     return v ? [{ key, x: v.x, z: v.z, y: v.y }] : []
   }
-  const spots = [
-    { key: 'scramble', x: 0, z: 0, y: 0 },
-    ...roadEnds('dogenzaka', /^道玄坂$/),
-    ...roadEnds('center-gai', /渋谷センター街/),
-    ...roadEnds('miyamasuzaka', /^宮益坂$/),
-    ...roadEnds('koen-dori', /公園通り/),
-    ...roadEnds('bunkamura-dori', /^文化村通り$/),
-    ...nearestViaduct('viaduct-jr', /山手線/, 'jr'),
-    ...nearestViaduct('viaduct-ginza', /銀座線/, 'ginza'),
-    ...spotOfBuilding('tower-scramble-square', /スクランブルスクエア/),
-    ...spotOfBuilding('tower-hikarie', /ヒカリエ/),
-    ...spotOfBuilding('tower-stream', /^渋谷ストリーム$/),
-    ...spotOfBuilding('tower-fukuras', /フクラス/),
-    ...spotOfBuilding('tower-sakura-stage', /Sakura Stage SHIBUYA Tower/),
-    ...spotOfBuilding('tower-cerulean', /セルリアンタワー/),
-    ...spotOfBuilding('mark-city', /マークシティ イースト/),
-    ...spotOfBuilding('bldg-109', /^Shibuya 109$/),
-    ...spotOfBuilding('bldg-magnet', /MAGNET/),
-    ...spotOfBuilding('bldg-parco', /Parco/i),
-    ...spotOfBuilding('miyashita-park', /^MIYASHITA PARK$/),
-  ]
+  const spots = area.spots({ roadEnds, nearestViaduct, spotOfBuilding })
 
   return {
     meta: {
-      title: 'Shibuya station area (Grand Theft Outfit)',
+      title: area.title,
       attribution: '© OpenStreetMap contributors (ODbL) / 標高: 国土地理院 基盤地図情報 数値標高モデル',
       osmTimestamp: osm.osm3s?.timestamp_osm_base ?? null,
       origin: { lat: ORIGIN.lat, lon: ORIGIN.lon, elevation: r1(originElev) },
@@ -724,15 +814,30 @@ export const bake = (osm, elevationAt) => {
   }
 }
 
+/** コマンドラインの引数を [エリア, 残りの引数] に分ける（--area <名前> と --area=<名前> のどちらでも） */
+export const parseArgs = (argv) => {
+  const rest = []
+  let areaId = 'shibuya'
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--area') areaId = argv[++i]
+    else if (argv[i].startsWith('--area=')) areaId = argv[i].slice('--area='.length)
+    else rest.push(argv[i])
+  }
+  return { areaId, rest }
+}
+
 const main = async () => {
-  const [osmPath, demDir, outPath = DEFAULT_OUT] = process.argv.slice(2)
+  const { areaId, rest } = parseArgs(process.argv.slice(2))
+  const area = BAKE_AREAS[areaId]
+  if (!area) throw new Error(`知らないエリアです: ${areaId}（${Object.keys(BAKE_AREAS).join(' / ')}）`)
+  const [osmPath, demDir, outPath = join(DATA_DIR, area.out)] = rest
   if (!osmPath || !demDir) {
-    process.stderr.write('使い方: node scripts/gto-bake-map.mjs <overpass.json> <demタイルのディレクトリ> [出力.json]\n')
+    process.stderr.write('使い方: node scripts/gto-bake-map.mjs [--area shibuya|shinjuku] <overpass.json> <demタイルのディレクトリ> [出力.json]\n')
     process.exit(1)
   }
   const osm = JSON.parse(await readFile(osmPath, 'utf8'))
   if (!Array.isArray(osm.elements)) throw new Error('Overpass の JSON ではありません（elements がない）')
-  const map = bake(osm, await loadDem(demDir))
+  const map = bake(osm, await loadDem(demDir), area)
   const json = JSON.stringify(map)
   const bytes = Buffer.byteLength(json)
   if (bytes > SIZE_LIMIT) {

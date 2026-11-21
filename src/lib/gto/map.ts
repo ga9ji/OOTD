@@ -341,7 +341,9 @@ export function createWorld(map: ShibuyaMap, area: AreaId = 'shibuya'): GtoWorld
 
 const cached = new Map<AreaId, GtoWorld>()
 /** [areas] 渋谷のほかのエリアの地図の読み込み口（動的 import。行くときに初めて読む） */
-const AREA_MAPS: Partial<Record<AreaId, () => Promise<{ default: unknown }>>> = {}
+const AREA_MAPS: Partial<Record<AreaId, () => Promise<{ default: unknown }>>> = {
+  shinjuku: () => import('./data/shinjukuMap.json'),
+}
 
 /** 同梱の渋谷の地図から世界を作る（1回だけ組み立てて使い回す） */
 export function loadWorld(): GtoWorld {

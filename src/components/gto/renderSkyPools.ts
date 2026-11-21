@@ -4,6 +4,7 @@
 //       本物の光源は「見ている場所に近い街灯」数個と自分の車の灯りだけで、数は最初に決めて増減させない
 //       （光源の数が変わるとシェーダーを作り直すことになる）。置き場所と強さは lightingLocal.ts が決める。
 import * as THREE from 'three'
+import { areaDef } from '../../lib/gto/areas'
 import { hexToLinear, lampPools, spillColor, type Rgb } from '../../lib/gto/lighting'
 import { boardLights, lampLights, pickLamps, plazaLights, shopStrips, tailPoolOf } from '../../lib/gto/lightingLocal'
 import { streetProps } from '../../lib/gto/map'
@@ -275,7 +276,7 @@ export function createLocalLights(ctx: RenderCtx): LocalLights | null {
   // 街灯と大型看板を同じ枠で取り合う（どちらも「近い順に数個」だけ本物の光源になる）
   const lamps = [
     ...lampLights(streetProps(world), quality.props).map((l) => ({ x: l.x, z: l.z, y: world.groundY(l.x, l.z) + l.height, range: l.range, color: lampColor, power: 1 })),
-    ...[...boardLights(buildSignage(world).slice(0, quality.maxSigns)), ...plazaLights(world)].map((b) => ({ x: b.x, z: b.z, y: b.y, range: b.range, color: new THREE.Color().setRGB(b.color[0], b.color[1], b.color[2]), power: b.power * L.boardLight })),
+    ...[...boardLights(buildSignage(world).slice(0, quality.maxSigns)), ...(areaDef(world).scramble ? plazaLights(world) : [])].map((b) => ({ x: b.x, z: b.z, y: b.y, range: b.range, color: new THREE.Color().setRGB(b.color[0], b.color[1], b.color[2]), power: b.power * L.boardLight })),
   ]
   const slots = Array.from({ length: LAMP_SLOTS[quality.id] }, () => {
     // 灯具は下向きの傘。灯具より上の壁は照らさない（壁の下のほうだけが光だまりになり、上の階は夜の色のまま残る）

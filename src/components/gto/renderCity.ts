@@ -6,6 +6,7 @@
 //       / renderCityProps（街灯・街路樹・信号・ゲート）/ renderCityTextures（模様）/ renderCityGeom（形の道具）
 import * as THREE from 'three'
 import { hexToLinear, type ScatterParams } from '../../lib/gto/lighting'
+import { areaDef } from '../../lib/gto/areas'
 import { isHiddenBuilding, landmarkOf } from '../../lib/gto/map'
 import { isSkylineTower } from '../../lib/gto/mapSkyline'
 import type { MapBuilding } from '../../lib/gto/types'
@@ -20,6 +21,7 @@ import { buildFaceDecos, buildPinkStair, buildWestSite } from './renderCityFacad
 import { buildLattice } from './renderCityLattice'
 import { buildBrickWalks, buildGuardFace } from './renderCityVista'
 import { buildLandmark } from './renderCityLandmarks'
+import { buildArch, createArchTexture } from './renderCityArch'
 import { buildGate, createGateTexture } from './renderCityGate'
 import { buildGuardSoffit } from './renderCityGuard'
 import { buildProps } from './renderCityProps'
@@ -123,18 +125,22 @@ export function createCityRenderer(ctx: RenderCtx): RenderPart {
     const owner = byId.get(ad.building)
     if (owner) wallBoard(cb, ad, owner.y)
   }
-  // 駅の建て替え工事のクレーン（遠くからの目印なので、軽量設定でも立てる）
-  buildCranes(cb)
-  // 東口の工事中の躯体とバス乗り場の上屋（宮益坂下から南を見たときの手前の層）
-  buildEastSite(cb)
-  // 乗り場のバスと、工事中の JR の高架の東の面（線路が右にある＝東口だと読める決め手）
-  buildEastSide(cb)
-  // ハチ公前広場の南の解体現場（白い仮囲いと黒い幕の足場）
-  buildWestSite(cb)
-  // センター街の桃色の棟の外階段（通りの中から駅を振り返ったときの、右半分の棟の右端）
-  buildPinkStair(cb)
-  // ガードを東から見た面（宮益坂下から西を見たときの、道の突き当たり）
-  buildGuardFace(cb)
+  // 工事のクレーン（遠くからの目印なので、軽量設定でも立てる）。立つ場所はエリアごとの表（lib/gto/areas.ts）
+  const area = areaDef(world)
+  buildCranes(cb, area.cranes)
+  // [areas] ここから下は、固定の座標に建てる渋谷だけの作り込み。ほかのエリアでは建てない（宙に出てしまう）
+  if (area.shibuyaSet) {
+    // 東口の工事中の躯体とバス乗り場の上屋（宮益坂下から南を見たときの手前の層）
+    buildEastSite(cb)
+    // 乗り場のバスと、工事中の JR の高架の東の面（線路が右にある＝東口だと読める決め手）
+    buildEastSide(cb)
+    // ハチ公前広場の南の解体現場（白い仮囲いと黒い幕の足場）
+    buildWestSite(cb)
+    // センター街の桃色の棟の外階段（通りの中から駅を振り返ったときの、右半分の棟の右端）
+    buildPinkStair(cb)
+    // ガードを東から見た面（宮益坂下から西を見たときの、道の突き当たり）
+    buildGuardFace(cb)
+  }
   const wallMaterials: { material: THREE.MeshLambertMaterial; scale: number }[] = []
   // カメラから見た太陽の向き（遠くの塔のかすみの見越しに使う）
   const sunView = { value: new THREE.Vector3() }
@@ -233,6 +239,17 @@ export function createCityRenderer(ctx: RenderCtx): RenderPart {
   const gateTexture = createGateTexture()
   disposables.push(gateTexture)
   add(gate.art, new THREE.MeshLambertMaterial({ map: gateTexture, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { cast: true })
+  // [areas] 歌舞伎町の通りの入口の赤い門（新宿だけ。通りが地図に無ければ空）。板の字は夜に自分で光る
+  const arch = buildArch(world, quality.props)
+  add(arch.solid, new THREE.MeshLambertMaterial({ vertexColors: true }), { cast: true })
+  add(arch.glow, glowMaterial, { receive: false })
+  let archMaterial: THREE.MeshLambertMaterial | null = null
+  if (!arch.art.empty) {
+    const archTexture = createArchTexture()
+    disposables.push(archTexture)
+    archMaterial = new THREE.MeshLambertMaterial({ map: archTexture, emissiveMap: archTexture, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.15 })
+    add(arch.art, archMaterial, { receive: false })
+  }
   // 行灯の街灯の通り名の札の字（ゲートと同じ絵の字を貼る）
   add(props.art, new THREE.MeshLambertMaterial({ map: gateTexture, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { receive: false })
 
@@ -247,6 +264,7 @@ export function createCityRenderer(ctx: RenderCtx): RenderPart {
     boardMaterial.emissiveIntensity = 0.08 + l.neon * 0.45
     glowMaterial.emissiveIntensity = l.lampsOn ? 1.6 : 0.15
     soffitMaterial.emissiveIntensity = l.lampsOn ? 0.24 : 0.18
+    if (archMaterial) archMaterial.emissiveIntensity = 0.12 + l.neon * 0.9
   }
   apply()
   return {

@@ -3,6 +3,7 @@
 // 契約: 地表（world.groundY）の上に街の描画が敷いている面（車道の舗装、その外の縁石の帯、歩道の敷石、
 //       スクランブル交差点の広場）の厚みを足して、車輪1つずつの接地面の高さを返す。
 //       数字は renderCityRoads.ts が道を敷く高さと同じ。車道の縁を1輪だけ越えれば、その輪だけが段を降りる。
+import { areaDef } from './areas'
 import { dirOf } from './math'
 import type { GtoWorld } from './types'
 import type { WheelHeights } from './vehicleSuspension'
@@ -32,7 +33,8 @@ interface Probe {
 
 function probe(world: GtoWorld, x: number, z: number): Probe {
   const tune = VEHICLE_GROUND
-  const center = Math.hypot(x, z)
+  // [areas] 原点の広場があるのは渋谷だけ。ほかのエリアでは、広場までの距離を無限遠として扱う
+  const center = areaDef(world).scramble ? Math.hypot(x, z) : Infinity
   if (center < tune.plazaRadius) return { lift: tune.plaza, margin: 0 }
   const near = world.nearestRoad(x, z, true, tune.reach)
   if (near) {

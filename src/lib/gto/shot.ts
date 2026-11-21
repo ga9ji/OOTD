@@ -1,18 +1,21 @@
 // Grand Theft Outfit: 撮影用の URL クエリ。同じクエリなら同じ絵になるようにする。
-// 入口: parseLaunch(query, world)
+// 入口: parseLaunch(query, world) / launchArea(query)（どのエリアで始めるかの指定）/ isCaptureQuery(query)
+//   &area=shibuya|shinjuku               エリアを選ぶ（撮影用。無ければ渋谷。ふつうに遊ぶときは、保存した「いまいるエリア」）
 //   ?gtoShot=<スポットのキー>            地図の主要スポットに立ち、通りの先を見る
 //   ?gtoShot=<緯度>,<経度>,<向き(度)>    緯度経度と向きを直接指定（&lat= &lon= &heading= でも可）
 //   &time=day|dusk|night  &quality=high|mobile  &hud=0|1  &seed=N
 //   &weather=clear|cloudy|rain|storm|fog|random   天気を固定する（random は種から決まる順に移り変わる）。
 //                         撮影用の URL では、指定が無ければ晴れのまま（同じクエリなら同じ絵にするため）
 //   &mode=foot|drive      指定すると「遊んでいる画面」（背後カメラ）。無ければ現地写真と同じ目の高さの固定カメラ
-//   &demo=<シナリオ名>    決まった入力を自動再生（demo.ts の DEMOS）
+//   &demo=<シナリオ名>    決まった入力を自動再生（demo.ts の DEMOS）。デモの場所と依頼は渋谷のものなので、
+//                         ほかのエリアでは、そのエリアの出発点から同じ入力だけを再生する
 //   &eye=1.6 &pitch=4 &fov=60   固定カメラの目の高さ m・見上げる角度（度）・縦の画角（度）
+import { areaDef, isAreaId } from './areas'
 import { DEMOS, type DemoScenario } from './demo'
 import { fromLatLon } from './map'
 import { photoStandpoint, photoTurn } from './mapPhoto'
 import { DEG, headingOf } from './math'
-import type { GtoWorld, PlayMode, TimeOfDay } from './types'
+import type { AreaId, GtoWorld, PlayMode, TimeOfDay } from './types'
 import { parseWeather, type WeatherKind } from './weather'
 
 export interface PhotoCamera {
@@ -128,10 +131,25 @@ export function clearOfWalls(world: GtoWorld, x: number, z: number, heading: num
   return onStreet(world, x, z)
 }
 
+/** [areas] URL で指定したエリア（指定が無い・知らない名前なら null） */
+export const launchArea = (query: URLSearchParams): AreaId | null => {
+  const area = query.get('area')
+  return isAreaId(area) ? area : null
+}
+
+/** 撮影用の URL か（題名の画面を飛ばして、進行の保存に触らない。parseLaunch の autostart と同じ条件） */
+export const isCaptureQuery = (query: URLSearchParams): boolean => query.get('gtoShot') != null || (query.get('demo') != null && DEMOS[query.get('demo')!] != null) || query.get('mode') != null
+
+/** [areas] デモを、渋谷でないエリア向けに直す（場所と依頼の段取りを外して、そのエリアの出発点から入力だけを再生する） */
+const demoFor = (demo: DemoScenario, shibuya: boolean): DemoScenario =>
+  shibuya ? demo : { ...demo, spot: undefined, stage: demo.stage && { ...demo.stage, at: undefined, mission: undefined, missionStep: undefined } }
+
 export function parseLaunch(query: URLSearchParams, world: GtoWorld): Launch {
   const shot = query.get('gtoShot')
   const demoName = query.get('demo')
-  const demo = demoName && DEMOS[demoName] ? DEMOS[demoName] : null
+  // 現地写真に合わせた立ち位置の直しと、デモの場所は、渋谷だけの物
+  const shibuya = areaDef(world).shibuyaSet
+  const demo = demoName && DEMOS[demoName] ? demoFor(DEMOS[demoName], shibuya) : null
   const modeParam = query.get('mode')
   const time = query.get('time')
   const eye = num(query.get('eye'), 1.6)
@@ -148,9 +166,9 @@ export function parseLaunch(query: URLSearchParams, world: GtoWorld): Launch {
     // 写真の推定位置が通り 1 本ぶん外れている所は、起こし直した立ち位置へ移す（mapPhoto.ts）
     const given = latLon[2] ?? num(query.get('heading'), 0)
     const shotTime = time === 'dusk' || time === 'night' ? time : 'day'
-    const p = photoStandpoint(raw.x, raw.z, given, pitch / DEG, shotTime)
+    const p = shibuya ? photoStandpoint(raw.x, raw.z, given, pitch / DEG, shotTime) : { x: raw.x, z: raw.z }
     // 写真の向きの推定が写っている物の方角とずれている所は、起こし直した向きへ回す（mapPhoto.ts の turn）
-    const turned = given + photoTurn(raw.x, raw.z, given, pitch / DEG, shotTime)
+    const turned = given + (shibuya ? photoTurn(raw.x, raw.z, given, pitch / DEG, shotTime) : 0)
     start = { ...clearOfWalls(world, p.x, p.z, turned * DEG), heading: turned * DEG }
   } else if (query.has('lat') && query.has('lon')) {
     const p = fromLatLon(world.map, num(query.get('lat'), 0), num(query.get('lon'), 0))

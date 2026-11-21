@@ -2,7 +2,7 @@
 // 駅の建て替え工事のクレーン（赤白のマストと斜めのジブ）。
 // 入口: beam / insetOutline / slopedRoof / buildCranes(cb)
 // 契約: クレーンの立つ場所は map.ts の CRANES。ここは形にするだけ。
-import { CRANES } from '../../lib/gto/map'
+import type { CraneSpec } from '../../lib/gto/areas'
 import { pointInPolygon } from '../../lib/gto/math'
 import type { Flat } from '../../lib/gto/types'
 import type { CityBuild } from './renderCityBuildings'
@@ -141,9 +141,9 @@ function crane(b: Builder, x: number, z: number, base: number, h: number, headin
   beam(b, tip, [tip[0], tip[1] - jib * 0.55, tip[2]], 0.06, CRANE.rope)
 }
 
-/** 工事のクレーンを立てる。建物の輪郭の中なら、その屋上から立つ */
-export function buildCranes(cb: CityBuild) {
-  for (const c of CRANES) {
+/** 工事のクレーンを立てる。建物の輪郭の中なら、その屋上から立つ。cranes はエリアごとの表（lib/gto/areas.ts） */
+export function buildCranes(cb: CityBuild, cranes: readonly CraneSpec[]) {
+  for (const c of cranes) {
     let base = cb.world.groundY(c.x, c.z)
     for (const bd of cb.world.map.buildings) {
       if (bd.part || !pointInPolygon(bd.pts, c.x, c.z)) continue

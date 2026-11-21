@@ -1,6 +1,7 @@
 // Grand Theft Outfit [部品: city] 地面・道路・路面標示・横断歩道・線路と道路の高架。
 // 入口: buildTerrain / buildRoads / buildRails
 // 契約: world（地図）から動かない形を作るだけ。色は ROAD_STYLE。
+import { areaDef } from '../../lib/gto/areas'
 import { isGroundRoad, isScrambleCrossing, roadDeck } from '../../lib/gto/map'
 import { FORK_RED_PATCHES, FORK_ZEBRA_WIDTH, forkCrossing } from '../../lib/gto/map109'
 import { clipOutside, junctionClearings } from '../../lib/gto/mapJunction'
@@ -190,12 +191,14 @@ export function buildRoads(world: GtoWorld, detail: boolean) {
   const lift = (dy: number) => (x: number, z: number) => world.groundY(x, z) + dy
   const S = ROAD_STYLE
   const clearings = junctionClearings(world.map.roads)
+  // [areas] 原点の広場と、固定の座標に敷く渋谷だけの路面は、そのエリアでだけ描く
+  const area = areaDef(world)
 
   // 109 前の分岐の横断歩道の付け根（赤茶の舗装）
-  for (const [x, z, r] of FORK_RED_PATCHES) disc(walk, x, z, r, lift(0.16), S.crossBand, 14)
+  if (area.shibuyaSet) for (const [x, z, r] of FORK_RED_PATCHES) disc(walk, x, z, r, lift(0.16), S.crossBand, 14)
 
   // スクランブル交差点の中央。標示のない濃いアスファルトの広場
-  disc(drive, 0, 0, 20, lift(0.13), S.asphaltDark, 24)
+  if (area.scramble) disc(drive, 0, 0, 20, lift(0.13), S.asphaltDark, 24)
 
   world.map.roads.forEach((r: MapRoad) => {
     if (r.tunnel) return
@@ -219,12 +222,12 @@ export function buildRoads(world: GtoWorld, detail: boolean) {
     if (!isGroundRoad(r)) return
     if (r.crossing) {
       // スクランブル交差点の横断歩道は幅が広い（辺 9m、対角 7m）
-      const scramble = isScrambleCrossing(r)
+      const scramble = area.scramble && isScrambleCrossing(r)
       const diagonal = scramble && r.pts.some((v, i) => i % 2 === 0 && Math.hypot(v, r.pts[i + 1]) < 1)
       const width = scramble ? (diagonal ? 7 : 9) : Math.max(r.width, 4)
       // 109 前の分岐: 縞だけを描く（109_12、109_07）。先端から正面へ延びる線には縞を描かない。赤茶の舗装は付け根だけ（下の FORK_RED_PATCHES）
-      if (isStubCrossing(r)) return
-      const fork = forkCrossing(r)
+      if (area.scramble && isStubCrossing(r)) return
+      const fork = area.shibuyaSet ? forkCrossing(r) : null
       if (fork === 'none') return
       ribbon(zebra, line, fork ? FORK_ZEBRA_WIDTH : width, lift(0.2), 0xffffff, 2)
       return
@@ -264,14 +267,16 @@ export function buildRoads(world: GtoWorld, detail: boolean) {
       for (let i = 0; i < r.pts.length; i += 2) disc(walk, r.pts[i], r.pts[i + 1], width / 2, lift(0.07), bricked(r.pts[i], r.pts[i + 1]) ? S.brick : S.paving)
     }
   })
-  // 東口のバス乗り場の路面（橋の手前から桁下まで一面のアスファルト）。地図の車道のすぐ下に敷く
-  for (const { line, width } of BUS_APRON.lanes) {
-    const fine = densify(line, 4)
-    ribbon(drive, fine, width, lift(0.1), S.asphalt, 4, true)
-    for (let i = 0; i < line.length; i += 2) disc(drive, line[i], line[i + 1], width / 2, lift(0.1), S.asphalt)
+  if (area.shibuyaSet) {
+    // 東口のバス乗り場の路面（橋の手前から桁下まで一面のアスファルト）。地図の車道のすぐ下に敷く
+    for (const { line, width } of BUS_APRON.lanes) {
+      const fine = densify(line, 4)
+      ribbon(drive, fine, width, lift(0.1), S.asphalt, 4, true)
+      for (let i = 0; i < line.length; i += 2) disc(drive, line[i], line[i + 1], width / 2, lift(0.1), S.asphalt)
+    }
+    ribbon(zebra, densify(BUS_APRON.crosswalk.line, 4), BUS_APRON.crosswalk.width, lift(0.2), 0xffffff, 2)
+    for (const c of EAST_CROSSWALKS) ribbon(zebra, densify(c.line, 4), c.width, lift(0.2), 0xffffff, 2)
   }
-  ribbon(zebra, densify(BUS_APRON.crosswalk.line, 4), BUS_APRON.crosswalk.width, lift(0.2), 0xffffff, 2)
-  for (const c of EAST_CROSSWALKS) ribbon(zebra, densify(c.line, 4), c.width, lift(0.2), 0xffffff, 2)
   return { drive, walk, lines, zebra, decks, sides }
 }
 
@@ -325,7 +330,8 @@ export function buildRails(world: GtoWorld, decks: Builder, sides: Builder, deta
       ribbon(tracks, offsetLine(fine, side), 0.14, (x, z, i) => (high ? fy[i] : Math.max(fy[i], world.groundY(x, z)) + 0.15) + 0.08, S.railSteel, 1)
     }
   }
-  buildTrain(decks, world)
+  // ガードの上に止まっている電車は、決まった場所の線路に置く渋谷だけの物
+  if (areaDef(world).shibuyaSet) buildTrain(decks, world)
   return tracks
 }
 

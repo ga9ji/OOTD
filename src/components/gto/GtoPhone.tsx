@@ -2,15 +2,24 @@
 // 開き方: パソコンは P キーか右上の「スマホ」、スマホはミニマップの右下の隅の丸いボタン。どちらも、メニューの「スマホ」からも開く（PHONE_EVENT）。
 // 開いているあいだは街の時間を止める（着替え画面と同じ）。通じたら一言を出して自分で閉じ、次の 1 歩で効く。
 // 画面: 打った番号・メモ（番号と効き目の一覧。押すとその番号へ発信する）・テンキー。背の低い横長の画面では左右 2 列に分ける。
+// [areas] メモの下の「のりかえ」から、ほかのエリアへ移る（onTravel。読み込みの画面を挟んで街が入れ替わる）。
+//         手配が付いているあいだは移れない（手配度は持ち越さないので、逃げ道にしない）。進行中の依頼は取り消しになる。
 // キー: 数字で打つ、Backspace で 1 つ消す、Enter で発信、Esc か P で閉じる。開いているあいだのキーは街の操作へ渡さない。
 // 見た目はこのゲームの配色（藍・生成り・橙）の架空の端末で、実在の機種や、ほかの作品の画面は写していない。
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AREA_IDS, AREAS } from '../../lib/gto/areas'
 import { CHEATS, dialPush, DIAL_MAX, findCheat } from '../../lib/gto/cheats'
+import type { AreaId } from '../../lib/gto/types'
 import { useI18n } from '../../lib/i18n'
 import type { GtoEngine } from './engine'
 import './gtoPhone.css'
 
-type Props = { engine: GtoEngine; touch: boolean }
+type Props = {
+  engine: GtoEngine
+  touch: boolean
+  /** [areas] 行き先を選んだ（スマホを閉じたあとに呼ぶ）。無ければ「のりかえ」を出さない */
+  onTravel?: (to: AreaId) => void
+}
 
 /** スマホを開け閉めするキーと、メニューから開くときに舞台へ送る合図の名前 */
 const PHONE_KEY = 'KeyP'
@@ -25,11 +34,18 @@ const openAtStart = () => new URLSearchParams(window.location.search).get('gtoPh
 interface Result {
   ok: boolean
   text: string
+  /** [areas] 裏コードではなく、行き先を選んだ一言か */
+  travel?: boolean
 }
 
-export default function GtoPhone({ engine, touch }: Props) {
+export default function GtoPhone({ engine, touch, onTravel }: Props) {
   const { t, locale } = useI18n()
   const [open, setOpen] = useState(openAtStart)
+  // [areas] 開いたときの手配度と依頼（開いているあいだ街の時間は止まるので、変わらない）
+  const [status, setStatus] = useState({ wanted: 0, onMission: false })
+  useEffect(() => {
+    if (open) setStatus(engine.status())
+  }, [engine, open])
   const [digits, setDigits] = useState('')
   const [result, setResult] = useState<Result | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -83,6 +99,21 @@ export default function GtoPhone({ engine, touch }: Props) {
       }, MISS_MS)
     },
     [engine, close],
+  )
+
+  /** [areas] 行き先を選ぶ。一言を出してから閉じ、街を入れ替える */
+  const travel = useCallback(
+    (to: AreaId) => {
+      if (!onTravel) return
+      window.clearTimeout(timer.current)
+      setDigits('')
+      setResult({ ok: true, text: AREAS[to].name, travel: true })
+      timer.current = window.setTimeout(() => {
+        close()
+        onTravel(to)
+      }, DONE_MS)
+    },
+    [onTravel, close],
   )
 
   const push = useCallback((key: string) => {
@@ -167,7 +198,7 @@ export default function GtoPhone({ engine, touch }: Props) {
                 {digits || t('番号を打つ')}
               </output>
               <p className={`gtp-result${result ? (result.ok ? ' is-ok' : ' is-miss') : ''}`} role="status">
-                {result ? (result.ok ? `${t('つながりました')}: ${t(result.text)}` : t(result.text)) : ' '}
+                {result ? (result.travel ? t('{place}へ向かいます', { place: t(result.text) }) : result.ok ? `${t('つながりました')}: ${t(result.text)}` : t(result.text)) : ' '}
               </p>
               <ul className="gtp-memo" aria-label={t('メモ')}>
                 {CHEATS.map((c) => (
@@ -182,6 +213,20 @@ export default function GtoPhone({ engine, touch }: Props) {
                   </li>
                 ))}
               </ul>
+              {onTravel && (
+                <div className="gtp-travel">
+                  <p>
+                    <b>{t('のりかえ')}</b>
+                    <span>{t('いま: {place}', { place: t(AREAS[engine.world.area].name) })}</span>
+                  </p>
+                  {AREA_IDS.filter((id) => id !== engine.world.area).map((id) => (
+                    <button type="button" key={id} disabled={busy || status.wanted > 0} onClick={() => travel(id)}>
+                      {t('{place}へ行く', { place: t(AREAS[id].name) })}
+                    </button>
+                  ))}
+                  {(status.wanted > 0 || status.onMission) && <small>{t(status.wanted > 0 ? '手配中は移動できない' : '移動すると、進行中の依頼は取り消しになる')}</small>}
+                </div>
+              )}
             </div>
 
             <div className="gtp-keys mono">

@@ -521,3 +521,55 @@
     left: 8px;
   }
 }
+
+/* ---------- [areas] 読み込みの画面（エリアを移るあいだ）。街も HUD も隠して、まん中に行き先を出す ---------- */
+.gto-travel {
+  position: absolute;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px;
+  background: var(--gto-ink);
+  color: var(--gto-cloth);
+  text-align: center;
+  letter-spacing: 0.06em;
+  animation: gto-travel-in 0.18s ease-out both;
+}
+.gto-travel small {
+  color: var(--gto-thread);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+}
+.gto-travel strong {
+  font-size: clamp(20px, 5vw, 30px);
+  font-weight: 900;
+  line-height: 1.5;
+}
+/* 縫い目が走る帯（待っているあいだ動いている物が 1 つあるように） */
+.gto-travel i {
+  width: min(220px, 60vw);
+  height: 4px;
+  background: repeating-linear-gradient(90deg, var(--gto-thread) 0 14px, transparent 14px 24px);
+  background-size: 24px 4px;
+  animation: gto-travel-run 0.5s linear infinite;
+}
+@keyframes gto-travel-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes gto-travel-run {
+  to {
+    background-position-x: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gto-travel,
+  .gto-travel i {
+    animation: none;
+  }
+}

@@ -1,23 +1,14 @@
 // Grand Theft Outfit: 題名の画面のカメラ。
-// 入口: titleCamera(t)（t は題名の画面を出してからの秒）
-// 契約: 交差点の西北西の空から、交差点とその奥の駅の高層棟を見下ろし、同じ弧の上をゆっくり往復する。
+// 入口: titleCamera(t, spec)（t は題名の画面を出してからの秒。spec はエリアごとの弧で、省くと渋谷）
+// 契約: 渋谷は、交差点の西北西の空から、交差点とその奥の駅の高層棟を見下ろし、同じ弧の上をゆっくり往復する。
 //       駅のまわりを 1 周させると、同じ高さにある高層棟とクレーンの中を通り抜けてしまうので、回さない。
-//       弧は、建物・クレーンに近づかず、交差点までの見通しも塞がれない範囲に収めてある（__tests__/titleCamera.test.ts が確かめる）。
+//       弧（lib/gto/areas.ts の title）は、エリアごとに、建物・クレーンに近づかず、見る先までの見通しも塞がれない範囲に
+//       収めてある（__tests__/titleCamera.test.ts と areaShinjuku.test.ts が確かめる）。
+import { AREAS, type TitleCameraSpec } from './areas'
 import { DEG } from './math'
 
-export const TITLE_CAMERA = {
-  /** 交差点（原点）からの水平距離 m と、高さ m */
-  radius: 150,
-  height: 78,
-  /** 弧の中心の方角（度。原点から見てカメラのある向き。南 0・東 90・北 180・西 270）と、左右へ振れる幅（度） */
-  mid: 248,
-  swing: 20,
-  /** 往復の速さ（ラジアン/秒。1 往復は約 57 秒） */
-  rate: 0.11,
-  /** 見る先の高さ m と、縦の画角（度） */
-  lookY: 14,
-  fov: 50,
-}
+/** 渋谷の弧（これまでの書き出し名） */
+export const TITLE_CAMERA: TitleCameraSpec = AREAS.shibuya.title
 
 export interface TitleCamera {
   x: number
@@ -30,8 +21,10 @@ export interface TitleCamera {
   fov: number
 }
 
-export function titleCamera(t: number): TitleCamera {
-  const c = TITLE_CAMERA
+export function titleCamera(t: number, spec: TitleCameraSpec = TITLE_CAMERA): TitleCamera {
+  const c = spec
+  const cx = c.cx ?? 0
+  const cz = c.cz ?? 0
   const a = (c.mid + c.swing * Math.sin(t * c.rate)) * DEG
-  return { x: Math.sin(a) * c.radius, y: c.height, z: Math.cos(a) * c.radius, tx: 0, ty: c.lookY, tz: 0, fov: c.fov }
+  return { x: cx + Math.sin(a) * c.radius, y: c.height, z: cz + Math.cos(a) * c.radius, tx: cx, ty: c.lookY, tz: cz, fov: c.fov }
 }

@@ -1,6 +1,8 @@
 // Grand Theft Outfit: ゲームの心臓部。シミュレーション（lib/gto/sim.ts）を一定の刻みで進め、
 // 描画部品（render*.ts）を毎フレーム更新する。入力（キーボード・マウス・ゲームパッド）もここで集める。
 // 入口: createGtoEngine(options)
+// [areas] 世界（エリア）は呼ぶ側が渡す。エリアを移るときは、このエンジンを捨てて、次の世界で作り直す
+//         （progress() で所持金・服・達成した依頼を取り出し、次のエンジンの carry に渡す。場所・車・手配は持ち越さない）。
 // 撮影ツール向けに window.__gto（ready・fps・状態の要約）を出す。
 import * as THREE from 'three'
 import { viewFov } from '../../lib/gto/camera'
@@ -8,12 +10,12 @@ import { demoInput } from '../../lib/gto/demo'
 import type { GtoAudio, GtoAudioDebug } from '../../lib/gto/gtoAudio'
 import { buildInput, emptyTouch, NO_INPUT, type PadInput, type TouchInput } from '../../lib/gto/input'
 import { lightingFor } from '../../lib/gto/lighting'
-import { loadWorld } from '../../lib/gto/map'
+import { areaDef } from '../../lib/gto/areas'
 import { dirOf } from '../../lib/gto/math'
 import { demoRoad, gapAhead, laneLeftOf } from '../../lib/gto/traffic'
 import type { QualityPreset } from '../../lib/gto/quality'
 import type { Launch } from '../../lib/gto/shot'
-import { applySave, clearSave, hasProgress, loadSave, saveOf, saveSummary, storeSave, type SaveSummary } from '../../lib/gto/save'
+import { applySave, clearSave, hasProgress, loadSave, saveOf, saveSummary, storeSave, type GtoSave, type SaveSummary } from '../../lib/gto/save'
 import { createGtoState, START_CASH, stepGto, viewOf, type GtoView } from '../../lib/gto/sim'
 import { titleCamera } from '../../lib/gto/titleCamera'
 import type { CheatId, GtoState, GtoWorld, SimConfig } from '../../lib/gto/types'
@@ -41,6 +43,12 @@ export interface UiFrame {
 
 export interface EngineOptions {
   container: HTMLElement
+  /** [areas] 遊ぶエリアの世界（lib/gto/map.ts の loadAreaWorld） */
+  world: GtoWorld
+  /** [areas] ほかのエリアから持ち越す進行（所持金・服・達成した依頼）。あれば端末の保存より優先し、題名の画面を挟まずに遊び始める */
+  carry?: GtoSave | null
+  /** [areas] 題名の画面を挟まずに遊び始める（ほかのエリアにいて「はじめから」を選び、渋谷へ戻って始め直すとき） */
+  skipTitle?: boolean
   launch: Launch
   quality: QualityPreset
   outfitKeys: string[]
@@ -65,6 +73,12 @@ export interface GtoEngine {
   wear: (key: string) => void
   /** [cheats] 次の1歩で、スマホで通じた裏コードを効かせる */
   cheat: (id: CheatId) => void
+  /** [areas] いまの進行（所持金・服・達成した依頼・いまいるエリア）。エリアを移るとき、次のエンジンへ渡す */
+  progress: () => GtoSave
+  /** [areas] エリアを移れるかを決めるための、いまの様子（手配度と、進行中の依頼があるか） */
+  status: () => { wanted: number; onMission: boolean }
+  /** 進行を端末へ残すか（撮影用の URL で始めたときは残さない） */
+  persist: boolean
   dispose: () => void
 }
 
@@ -92,8 +106,8 @@ const readPad = (prev: readonly boolean[]): PadInput | null => {
 }
 
 export function createGtoEngine(opts: EngineOptions): GtoEngine {
-  const { container, launch, quality, audio } = opts
-  const world = loadWorld()
+  const { container, launch, quality, audio, world } = opts
+  const area = areaDef(world)
   const lighting = lightingFor(launch.time)
   const cfg: SimConfig = {
     maxVehicles: quality.maxVehicles,
@@ -150,17 +164,21 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
   // 題名の画面から普通に遊ぶときだけ、前回の進行を戻して、変わるたびに端末へ書く。
   // 撮影用の URL で始めたときは読まないし書かない（同じクエリなら同じ絵にするため。遊んでいる進行も汚さない）
   const persist = !launch.autostart
-  const loaded = persist ? loadSave() : null
-  const resumed = loaded != null && hasProgress(loaded, START_CASH) ? saveSummary(loaded) : null
-  if (loaded && resumed) state = applySave(state, loaded, cfg.outfitKeys)
+  // [areas] ほかのエリアから移ってきたときは、持ち越した進行で始める（端末の保存は読まない。題名の画面も挟まない）
+  const carry = opts.carry ?? null
+  const loaded = carry ?? (persist ? loadSave() : null)
+  const resumed = !carry && loaded != null && hasProgress(loaded, START_CASH) ? saveSummary(loaded) : null
+  if (loaded && (carry || resumed)) state = applySave(state, loaded, cfg.outfitKeys)
+  // 着いたエリアを、すぐ端末へ残す（移った直後に閉じても、次はこのエリアから始まる）
+  if (carry && persist) storeSave(saveOf(state, world.area))
   let kept = { cash: state.cash, outfit: state.outfit, done: state.mission.done }
   const keepProgress = () => {
     if (!persist || phase !== 'play') return
     if (state.cash === kept.cash && state.outfit === kept.outfit && state.mission.done === kept.done) return
     kept = { cash: state.cash, outfit: state.outfit, done: state.mission.done }
-    storeSave(saveOf(state))
+    storeSave(saveOf(state, world.area))
   }
-  let phase: 'title' | 'play' = launch.autostart ? 'play' : 'title'
+  let phase: 'title' | 'play' = launch.autostart || carry || opts.skipTitle ? 'play' : 'title'
   let disposed = false
   let raf = 0
   let last = performance.now()
@@ -262,7 +280,7 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
   const placeCamera = () => {
     if (phase === 'title') {
       // 題名の画面では、交差点を見下ろす弧の上をゆっくり往復する（建物とクレーンを避けた弧。lib/gto/titleCamera.ts）
-      const c = titleCamera(now)
+      const c = titleCamera(now, area.title)
       camera.position.set(c.x, c.y, c.z)
       camera.fov = c.fov
       camera.lookAt(c.tx, c.ty, c.tz)
@@ -304,6 +322,7 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     audio: audio.debug,
     snapshot: () => ({
       t: state.t,
+      area: world.area,
       mode: state.mode,
       player: { x: state.player.x, y: state.player.y, z: state.player.z, heading: state.player.heading, speed: state.player.speed },
       camera: { x: state.camera.x, y: state.camera.y, z: state.camera.z, yaw: state.camera.yaw },
@@ -413,6 +432,9 @@ export function createGtoEngine(opts: EngineOptions): GtoEngine {
     cheat: (id) => {
       cheatNext = id
     },
+    progress: () => saveOf(state, world.area),
+    status: () => ({ wanted: state.wanted.level, onMission: state.mission.active != null }),
+    persist,
     dispose: () => {
       disposed = true
       cancelAnimationFrame(raf)

@@ -51,3 +51,30 @@ export const HEIGHT_OVERRIDES_BY_NAME = [
   // MIYASHITA PARK 南街区（低層の商業棟）。屋上公園の床の高さに合わせる（上の 116806278 と対）
   { test: /^MIYASHITA PARK$/i, h: 17, ref: 'MIYASHITA PARK(低層部)' },
 ]
+
+// ---- 新宿（東口・歌舞伎町・新宿三丁目）の補正表 --------------------------------
+// 渋谷の表と同じ形。現地写真との突き合わせはまだしていない。主な高層棟は OSM に高さが入っている
+// （いちばん高い塔 225m、映画館の入る棟 130m、駅の南の塔 168m など）ので、高さの補正は空のまま。
+export const SHINJUKU_TABLES = {
+  HEIGHT_OVERRIDES: {},
+  HEIGHT_OVERRIDES_BY_NAME: [],
+  EXTRA_BUILDINGS: [],
+  DROP_BUILDINGS: [],
+  CORNER_CUTS: [],
+  // 車道の幅の下限（m）。OSM の車線数だけだと狭くなる通り
+  ROAD_WIDTH_MIN: {},
+  // 通り沿いの壁の高さの下限（m）。主な通りの両側に低い棟の穴が開かないようにする（渋谷の STREET_WALL_MIN と同じ考え方）
+  STREET_WALL_MIN: {
+    新宿通り: 27,
+    靖国通り: 27,
+    明治通り: 27,
+    甲州街道: 27,
+    御苑通り: 25,
+    区役所通り: 22,
+    セントラルロード: 22,
+    花道通り: 20,
+    歌舞伎町一番街通り: 20,
+  },
+  // 目印の場所にする建物 [spots のキー, 名前の正規表現]。名前は内部参照専用で、画面には出さない
+  SPOT_BUILDINGS: [],
+}

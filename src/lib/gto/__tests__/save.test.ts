@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MISSIONS } from '../missionData'
+import { ALL_MISSIONS, MISSIONS } from '../missionData'
 import { OUTFIT_TUNING } from '../outfit'
 import { applySave, hasProgress, parseSave, saveOf, saveSummary, type GtoSave } from '../save'
 import { START_CASH } from '../sim'
@@ -39,8 +39,8 @@ describe('gto save: 進行を取り出して戻す', () => {
     expect(hasProgress({ ...fresh, done: [first] }, START_CASH)).toBe(true)
   })
 
-  it('あらましは、手持ちの服の数と、達成した依頼の数／全部の数', () => {
-    expect(saveSummary(save({ done: [first, second] }))).toEqual({ cash: 4200, outfits: 3, missions: 2, missionTotal: MISSIONS.length })
+  it('あらましは、手持ちの服の数と、達成した依頼の数／全部の数（全エリアの合計）', () => {
+    expect(saveSummary(save({ done: [first, second] }))).toEqual({ cash: 4200, outfits: 3, missions: 2, missionTotal: ALL_MISSIONS.length })
   })
 })
 

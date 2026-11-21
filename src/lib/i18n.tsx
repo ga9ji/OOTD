@@ -1221,6 +1221,11 @@ export const EN: Record<string, string> = {
   '所持金・服・依頼の進み具合は、この端末に自動で保存されます': 'Cash, outfits and job progress are saved on this device automatically',
   // [gto weather] HUD の天気
   '雷雨': 'Storm',
+  // [gto areas] エリア（渋谷・新宿）と、読み込みの画面
+  '渋谷': 'Shibuya',
+  '新宿': 'Shinjuku',
+  '{place}へ移動中…': 'Travelling to {place}…',
+  '{place}を読み込み中…': 'Loading {place}…',
   // [gto cheats] スマホの裏コード、戦車と飛行機
   '高度': 'ALT',
   '上昇': 'Climb',

@@ -1,7 +1,9 @@
 // Grand Theft Outfit [部品: missions] ミッションの中身（表）。登場人物・筋書き・店はすべて架空。
 // 通りと坂の名前だけ実名。進め方（数え方・失敗の条件）は missions.ts が持つ。
 // 座標は地図と同じ（x=東が＋、z=南が＋、m）。場所が歩ける所にあることはテストで確かめている。
-import type { Flat } from './types'
+// [areas] 依頼はエリアごとの表に分ける。MISSIONS は渋谷、SHINJUKU_MISSIONS は新宿。依頼人が立つのは、いまいるエリアの依頼だけ
+//         （missionsOf）。id は全エリアを通して重ならない（達成の記録は 1 本の列に残す。ALL_MISSIONS）。
+import type { AreaId, Flat } from './types'
 
 interface StepBase {
   /** いまの目的（HUD と演出に出す） */
@@ -298,3 +300,14 @@ export const MISSIONS: MissionDef[] = [
     timeBonus: 80,
   },
 ]
+
+/** 新宿（東口・歌舞伎町・新宿三丁目）の依頼 */
+export const SHINJUKU_MISSIONS: MissionDef[] = []
+
+const BY_AREA: Record<AreaId, MissionDef[]> = { shibuya: MISSIONS, shinjuku: SHINJUKU_MISSIONS }
+
+/** そのエリアで受けられる依頼の表（エリアの分からないときは渋谷） */
+export const missionsOf = (area: AreaId | undefined): MissionDef[] => BY_AREA[area ?? 'shibuya'] ?? MISSIONS
+
+/** 全エリアの依頼（id から引く・達成の記録を読むとき） */
+export const ALL_MISSIONS: MissionDef[] = [...MISSIONS, ...SHINJUKU_MISSIONS]

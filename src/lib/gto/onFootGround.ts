@@ -5,6 +5,7 @@
 //       体が浮いて滑っているように見える。ここは人の足元の面の厚み（地表からの高さ m）を返す。
 //       車道・縁石・歩道・広場・横断歩道の縞を、敷く条件・幅・高さとも renderCityRoads.ts と同じに並べ、
 //       重なっている所はいちばん上の面を返す。three/DOM なし。
+import { areaDef } from './areas'
 import { isGroundRoad, isScrambleCrossing } from './map'
 import { FORK_RED_PATCHES, FORK_ZEBRA_WIDTH, forkCrossing } from './map109'
 import { BUS_APRON } from './mapEast'
@@ -104,13 +105,15 @@ function inStrip(s: Strip, x: number, z: number): boolean {
 function surfaceStrips(world: GtoWorld): Strip[] {
   const T = FOOT_GROUND
   const strips: Strip[] = []
+  // [areas] 原点の広場と、渋谷だけの固定の路面は、そのエリアでだけ（renderCityRoads.ts と同じ出し分け）
+  const area = areaDef(world)
   for (const r of world.map.roads) {
     if (!isGroundRoad(r)) continue
     if (r.crossing) {
-      if (isStubCrossing(r)) continue
-      const fork = forkCrossing(r)
+      if (area.scramble && isStubCrossing(r)) continue
+      const fork = area.shibuyaSet ? forkCrossing(r) : null
       if (fork === 'none') continue
-      const scramble = isScrambleCrossing(r)
+      const scramble = area.scramble && isScrambleCrossing(r)
       const diagonal = scramble && r.pts.some((v, i) => i % 2 === 0 && Math.hypot(v, r.pts[i + 1]) < 1)
       strips.push(makeStrip(r.pts, fork ? FORK_ZEBRA_WIDTH : scramble ? (diagonal ? 7 : 9) : Math.max(r.width, 4), T.zebra))
     } else if (r.drive) {
@@ -120,11 +123,13 @@ function surfaceStrips(world: GtoWorld): Strip[] {
       strips.push(makeStrip(r.pts, r.name === '渋谷センター街' ? r.width + 1.5 : r.width, T.walk))
     }
   }
-  strips.push(makeStrip(BUS_APRON.crosswalk.line, BUS_APRON.crosswalk.width, T.zebra))
-  for (const lane of BUS_APRON.lanes) strips.push(makeStrip(lane.line, lane.width, T.apron))
-  for (const [x, z, r] of FORK_RED_PATCHES) strips.push(makeStrip([x, z, x, z], r * 2, T.redPatch))
+  if (area.shibuyaSet) {
+    strips.push(makeStrip(BUS_APRON.crosswalk.line, BUS_APRON.crosswalk.width, T.zebra))
+    for (const lane of BUS_APRON.lanes) strips.push(makeStrip(lane.line, lane.width, T.apron))
+    for (const [x, z, r] of FORK_RED_PATCHES) strips.push(makeStrip([x, z, x, z], r * 2, T.redPatch))
+  }
   // スクランブル交差点の広場
-  strips.push(makeStrip([0, 0, 0, 0], T.plazaRadius * 2, T.plaza))
+  if (area.scramble) strips.push(makeStrip([0, 0, 0, 0], T.plazaRadius * 2, T.plaza))
   return strips.sort((a, b) => b.lift - a.lift)
 }
 

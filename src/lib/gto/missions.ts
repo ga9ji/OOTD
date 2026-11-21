@@ -1,14 +1,16 @@
 // Grand Theft Outfit [部品: missions] ミッション。登場人物も筋書きもすべてオリジナル。
-// 入口: MISSIONS / createMissions / startMission / stepMissions / missionMarkers / missionText
+// 入口: MISSIONS（渋谷）・ALL_MISSIONS・missionsOf(area) / createMissions(area) / startMission / stepMissions / missionMarkers / missionText
 //       / missionCueModel（導入・達成・失敗の演出。達成の札には、次に開いた依頼の知らせが付く）
 //       / missionGauge（数・警戒・しわ）/ tailPoint（尾行の相手の位置）/ isOpen・unlockedBy（依頼が開く順）
 // 契約: 主人公の様子（MissionView）とその1歩で起きたこと（GtoEvent）だけを読み、
 //       進み具合と賞金と起きたことを返す。中身は missionData.ts の表に足すだけで増やせる。
+//       [areas] 依頼人が立つ・踏んで始まるのは、いまいるエリア（MissionState.area。無ければ渋谷）の依頼だけ。
+//       達成の記録（done）は全エリアで 1 本。id から中身を引くときは全エリアの表を見る。
 import { cumulative, dist2, pointAlong } from './math'
-import { MISSIONS, type Guard, type MissionDef, type MissionStep } from './missionData'
-import type { GtoEvent, Marker, MissionCue, MissionProgress, MissionState } from './types'
+import { ALL_MISSIONS, MISSIONS, missionsOf, type Guard, type MissionDef, type MissionStep } from './missionData'
+import type { AreaId, GtoEvent, Marker, MissionCue, MissionProgress, MissionState } from './types'
 
-export { MISSIONS, type Guard, type MissionDef, type MissionStep }
+export { ALL_MISSIONS, MISSIONS, missionsOf, type Guard, type MissionDef, type MissionStep }
 
 export const MISSION_TUNING = {
   startRadius: 3,
@@ -40,15 +42,16 @@ export const MISSION_TUNING = {
   movingCarPenalty: 1.6,
 }
 
-export const createMissions = (): MissionState => ({ active: null, done: [], banner: null, cue: null })
+/** area は、いまいるエリア（省くと渋谷。渋谷のときは欄を置かない＝これまでの状態と同じ形） */
+export const createMissions = (area: AreaId = 'shibuya'): MissionState => ({ ...(area !== 'shibuya' ? { area } : {}), active: null, done: [], banner: null, cue: null })
 
-const defOf = (id: string) => MISSIONS.find((m) => m.id === id)
+const defOf = (id: string) => ALL_MISSIONS.find((m) => m.id === id)
 
 /** その依頼がいま受けられるか（まだ達成しておらず、前提の依頼を達成している） */
 export const isOpen = (m: MissionState, d: MissionDef): boolean => !m.done.includes(d.id) && (d.after == null || m.done.includes(d.after))
 
 /** id を達成すると新しく開く依頼 */
-export const unlockedBy = (id: string): MissionDef[] => MISSIONS.filter((d) => d.after === id)
+export const unlockedBy = (id: string): MissionDef[] => ALL_MISSIONS.filter((d) => d.after === id)
 
 /** 目印を決めるために見る、主人公のまわりの様子（無くてもよい。あれば「車をつかまえる」で近くの車に印を付ける） */
 export interface MissionScene {
@@ -184,7 +187,7 @@ export function missionMarkers(m: MissionState, scene?: MissionScene): Marker[] 
     }
     return []
   }
-  const starts = MISSIONS.filter((d) => isOpen(m, d)).map(
+  const starts = missionsOf(m.area).filter((d) => isOpen(m, d)).map(
     (d): Marker => ({ x: d.start.x, z: d.start.z, kind: 'start', radius: MISSION_TUNING.startRadius, ref: d.id, look: 'person' }),
   )
   // 主人公の場所が分かるときは、近い依頼人を先頭にする（案内とデモは先頭を目指す）
@@ -360,7 +363,7 @@ export function stepMissions(
   if (!m.active) {
     const cooling = m.cue?.kind === 'failed' && view.t - m.cue.at < MISSION_TUNING.retryDelay
     const r2 = MISSION_TUNING.startRadius * MISSION_TUNING.startRadius
-    const hit = cooling || view.inVehicle ? undefined : MISSIONS.find((d) => isOpen(m, d) && dist2(view.x, view.z, d.start.x, d.start.z) < r2)
+    const hit = cooling || view.inVehicle ? undefined : missionsOf(m.area).find((d) => isOpen(m, d) && dist2(view.x, view.z, d.start.x, d.start.z) < r2)
     if (!hit) return { mission: m, events: out, reward: 0 }
     out.push({ type: 'missionStart', x: view.x, z: view.z, ref: hit.id })
     return { mission: startMission(m, hit.id, view.t), events: out, reward: 0 }

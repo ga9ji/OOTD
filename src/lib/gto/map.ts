@@ -1,12 +1,15 @@
-// Grand Theft Outfit: 渋谷の地図（shibuyaMap.json）から、動かない世界への問い合わせ口を組み立てる。
+// Grand Theft Outfit: エリアの地図（data/<エリア>Map.json）から、動かない世界への問い合わせ口を組み立てる。
 // 地表の高さ、建物との当たり判定、いちばん近い道、車と人の道路グラフ。
-// 入口は loadWorld()（同梱の地図）と createWorld(map)（テスト用に小さな地図も渡せる）。
+// 入口は loadWorld()（同梱の渋谷の地図）/ loadAreaWorld(area)（エリアを選ぶ。渋谷のほかは行くときに初めて読む）
+//       / createWorld(map, area)（テスト用に小さな地図も渡せる）。
+import { areaDef, AREAS, type CraneSpec } from './areas'
 import mapJson from './data/shibuyaMap.json'
 import { BLOCK_STYLES, EXTRA_BOARDS } from './mapBlockStyles'
 import { EAST_SIGNALS } from './mapEastFront'
 import { inPhotoSight, nearPhotoStand, PHOTO_LAMPS, PHOTO_SIGNAL_CLEAR, PHOTO_STAND_CLEAR } from './mapPhoto'
 import { clamp, closestOnPolygon, closestOnSegment, cumulative, hash, headingOf, pointAlong, pointInPolygon } from './math'
 import type {
+  AreaId,
   CircleHit,
   Flat,
   GraphEdge,
@@ -142,7 +145,7 @@ export function buildGraph(roads: MapRoad[], indices: number[], respectOneway: b
   return { nodes, edges }
 }
 
-export function createWorld(map: ShibuyaMap): GtoWorld {
+export function createWorld(map: ShibuyaMap, area: AreaId = 'shibuya'): GtoWorld {
   const { elevation: el, buildings, roads } = map
   const bounds = map.meta.bounds
 
@@ -320,6 +323,7 @@ export function createWorld(map: ShibuyaMap): GtoWorld {
   const spots = new Map(map.spots.map((s) => [s.key, s]))
 
   return {
+    area,
     map,
     bounds,
     groundY,
@@ -335,12 +339,30 @@ export function createWorld(map: ShibuyaMap): GtoWorld {
   }
 }
 
-let cached: GtoWorld | null = null
+const cached = new Map<AreaId, GtoWorld>()
+/** [areas] 渋谷のほかのエリアの地図の読み込み口（動的 import。行くときに初めて読む） */
+const AREA_MAPS: Partial<Record<AreaId, () => Promise<{ default: unknown }>>> = {}
 
 /** 同梱の渋谷の地図から世界を作る（1回だけ組み立てて使い回す） */
 export function loadWorld(): GtoWorld {
-  if (!cached) cached = createWorld(mapJson as unknown as ShibuyaMap)
-  return cached
+  let world = cached.get('shibuya')
+  if (!world) cached.set('shibuya', (world = createWorld(mapJson as unknown as ShibuyaMap, 'shibuya')))
+  return world
+}
+
+/**
+ * [areas] エリアを選んで世界を作る（エリアごとに 1 回だけ組み立てて使い回す）。
+ * 渋谷の地図は同梱。ほかのエリアの地図は、行くときに初めて読む（渋谷だけ遊ぶ人の読み込みを増やさない）。
+ */
+export async function loadAreaWorld(area: AreaId): Promise<GtoWorld> {
+  if (area === 'shibuya') return loadWorld()
+  let world = cached.get(area)
+  if (!world) {
+    const json = await AREA_MAPS[area]?.()
+    if (!json) throw new Error(`エリアの地図がありません: ${area}`)
+    cached.set(area, (world = createWorld(json.default as unknown as ShibuyaMap, area)))
+  }
+  return world
 }
 
 /** 緯度経度 → ゲーム内の座標 */
@@ -465,13 +487,8 @@ export const blockStyleOf = (b: MapBuilding): BlockStyle | null => BLOCK_STYLES[
 /** 建物に立てる屋上の広告塔の決めごと（外装を決めた街区のぶん＋形を作り込む建物に足すぶん） */
 export const boardSpecsOf = (b: MapBuilding): BoardSpec[] => BLOCK_STYLES[b.id]?.boards ?? EXTRA_BOARDS[b.id] ?? []
 
-/** 駅の建て替え工事のクレーン。立つ場所・マストの高さ m・ジブの向き（度、北 0・時計回り）。建物の上なら屋上から立つ */
-export const CRANES: { x: number; z: number; h: number; heading: number }[] = [
-  { x: 86, z: 118, h: 58, heading: 40 },
-  { x: 72, z: 158, h: 66, heading: 300 },
-  { x: 104, z: 150, h: 50, heading: 160 },
-  { x: 58, z: 96, h: 44, heading: 230 },
-]
+/** 渋谷の駅の建て替え工事のクレーン（これまでの書き出し名。エリアごとの表は lib/gto/areas.ts の cranes） */
+export const CRANES: readonly CraneSpec[] = AREAS.shibuya.cranes
 
 export interface RoofBoard {
   /** 板の中心 */
@@ -662,6 +679,8 @@ const CENTER_LAMP = { every: 22, offset: 2.1 } as const
 /** 街灯・街路樹・信号の置き場所。地図だけから決まり、毎回同じ並びになる */
 export function streetProps(world: GtoWorld): StreetProp[] {
   const roads = world.map.roads
+  // [areas] 原点の広場と、渋谷だけの固定の場所の決まり（写真の立ち位置の空き・分岐の前・宮益坂下）は、そのエリアでだけ効かせる
+  const { scramble, shibuyaSet } = areaDef(world)
   const out: StreetProp[] = []
   const cells = new Map<number, number[]>()
   const key = (x: number, z: number) => cellKey(Math.floor(x / 8), Math.floor(z / 8))
@@ -684,17 +703,21 @@ export function streetProps(world: GtoWorld): StreetProp[] {
     const pz = Math.round(z * 10) / 10
     if (world.insideBuilding(px, pz) || crowded(px, pz)) return
     // スクランブル交差点の広場の中には、信号柱しか立てない
-    if (kind !== 'signal' && Math.hypot(px, pz) < SCRAMBLE_CLEAR) return
-    if (kind === 'tree' && !plaza && Math.hypot(px, pz) < SCRAMBLE_TREE_CLEAR) return
-    // 109 の分岐の先端の前には植えない（現地でも円筒の正面は開けている）
-    if (kind === 'tree' && Math.hypot(px - FORK_109[0], pz - FORK_109[1]) < (px > FORK_EAST_FROM ? FORK_CLEAR_EAST : FORK_CLEAR)) return
-    if (kind === 'tree' && px > EAST_VISTA[0] && px < EAST_VISTA[1] && pz > EAST_VISTA[2] && pz < EAST_VISTA[3]) return
-    if (kind === 'tree' && px > MIYAMASU_BARE[0] && px < MIYAMASU_BARE[1] && pz > MIYAMASU_BARE[2] && pz < MIYAMASU_BARE[3]) return
-    if (kind !== 'tree' && kind !== 'signal' && Math.hypot(px - EAST_CORNER[0], pz - EAST_CORNER[1]) < EAST_CORNER[2]) return
-    // 現地写真の立ち位置の目の前には、木も街灯も立てない（幹や柱が画面の真ん中を塞ぐ）。信号柱はすぐ脇だけ避ける
-    if (nearPhotoStand(px, pz, kind === 'signal' ? PHOTO_SIGNAL_CLEAR : PHOTO_STAND_CLEAR)) return
-    // 写真の決め手（通りの先の塔）への見通しの上には植えない
-    if (kind === 'tree' && inPhotoSight(px, pz)) return
+    if (scramble) {
+      if (kind !== 'signal' && Math.hypot(px, pz) < SCRAMBLE_CLEAR) return
+      if (kind === 'tree' && !plaza && Math.hypot(px, pz) < SCRAMBLE_TREE_CLEAR) return
+    }
+    if (shibuyaSet) {
+      // 109 の分岐の先端の前には植えない（現地でも円筒の正面は開けている）
+      if (kind === 'tree' && Math.hypot(px - FORK_109[0], pz - FORK_109[1]) < (px > FORK_EAST_FROM ? FORK_CLEAR_EAST : FORK_CLEAR)) return
+      if (kind === 'tree' && px > EAST_VISTA[0] && px < EAST_VISTA[1] && pz > EAST_VISTA[2] && pz < EAST_VISTA[3]) return
+      if (kind === 'tree' && px > MIYAMASU_BARE[0] && px < MIYAMASU_BARE[1] && pz > MIYAMASU_BARE[2] && pz < MIYAMASU_BARE[3]) return
+      if (kind !== 'tree' && kind !== 'signal' && Math.hypot(px - EAST_CORNER[0], pz - EAST_CORNER[1]) < EAST_CORNER[2]) return
+      // 現地写真の立ち位置の目の前には、木も街灯も立てない（幹や柱が画面の真ん中を塞ぐ）。信号柱はすぐ脇だけ避ける
+      if (nearPhotoStand(px, pz, kind === 'signal' ? PHOTO_SIGNAL_CLEAR : PHOTO_STAND_CLEAR)) return
+      // 写真の決め手（通りの先の塔）への見通しの上には植えない
+      if (kind === 'tree' && inPhotoSight(px, pz)) return
+    }
     if (checkRoad && onCarriageway(px, pz)) return
     // 建物の壁ぎわすぎる所（歩道が無い所）には置かない
     if (world.resolveCircle(px, pz, 0.35).hit) return
@@ -717,7 +740,7 @@ export function streetProps(world: GtoWorld): StreetProp[] {
   }
 
   // 写真の手前に写る行灯の街灯（等間隔の並びより先に立てて、すぐ隣の 1 本と入れ替える）
-  for (const [x, z] of PHOTO_LAMPS) place('lamp-center', x, z, 0, false)
+  if (shibuyaSet) for (const [x, z] of PHOTO_LAMPS) place('lamp-center', x, z, 0, false)
   roads.forEach((r) => {
     if (!isGroundRoad(r)) return
     if (r.name === CENTER_GAI && !r.drive) {
@@ -737,10 +760,10 @@ export function streetProps(world: GtoWorld): StreetProp[] {
   })
 
   // ハチ公前広場の木（scramble_14/16: 駅舎の前に大きな広葉樹が数本）
-  for (const [x, z] of PLAZA_TREES) place('tree', x, z, 0, true, true)
+  if (shibuyaSet) for (const [x, z] of PLAZA_TREES) place('tree', x, z, 0, true, true)
 
   // 宮益坂下の横断歩道の信号柱（写真の立ち位置の脇にも立てるので、place の空きの決まりを通さない）
-  for (const [x, z, deg] of EAST_SIGNALS) out.push({ kind: 'signal', x, z, heading: (deg * Math.PI) / 180 })
+  if (shibuyaSet) for (const [x, z, deg] of EAST_SIGNALS) out.push({ kind: 'signal', x, z, heading: (deg * Math.PI) / 180 })
   // 信号柱。停止位置の点から道の左の歩道へ寄せ、腕を車道の上へ伸ばす
   for (const [sx, sz] of world.map.signals) {
     const near = world.nearestRoad(sx, sz, true, 12)

@@ -2,6 +2,7 @@
 // 入口: buildGuardSoffit(world, detail) → { steel, lamps }
 // 契約: 形の決まりごとは lib/gto/mapGuard.ts。ここは箱を並べるだけ。steel は自分でも少し光る材質で描く
 //       （桁の下は昼でも夕方でも灯具と路面の照り返しで骨組みが読める。真っ黒な天井にしない）。
+import { areaDef } from '../../lib/gto/areas'
 import { GUARD_SOFFIT, guardSoffit, soffitFrame, type Seg } from '../../lib/gto/mapGuard'
 import type { GtoWorld } from '../../lib/gto/types'
 import { box, Builder, cylinder } from './renderCityGeom'
@@ -27,7 +28,8 @@ const mid = (s: Seg): [number, number, number, number] => [(s.ax + s.bx) / 2, (s
 export function buildGuardSoffit(world: GtoWorld, detail: boolean): { steel: Builder; lamps: Builder } {
   const steel = new Builder()
   const lamps = new Builder()
-  const q = guardSoffit(world.map)
+  // [areas] 渋谷のガードだけ。線路が決まった z の範囲を横切る所に張るので、ほかのエリアでは何も作らない
+  const q = areaDef(world).shibuyaSet ? guardSoffit(world.map) : null
   if (!q) return { steel, lamps }
   const G = GUARD_SOFFIT
   const f = soffitFrame(q)

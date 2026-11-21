@@ -2,13 +2,15 @@
 // 入口: saveOf(state)（いまの進行を取り出す） / parseSave(raw)（保存した文字列を読む） / applySave(state, save, outfitKeys)（始めの状態へ戻す）
 //       hasProgress(save) / saveSummary(save)（題名の画面の「つづきから」）
 //       loadSave() / storeSave(save) / clearSave()（端末の localStorage）
-// 契約: 残すのは「所持金・手持ちの服と着ている服・達成した依頼」だけ。
+// 契約: 残すのは「所持金・手持ちの服と着ている服・達成した依頼」と、[areas]「いまいるエリア」だけ。
+//       エリアの欄が無い保存（エリアができる前の保存）は、そのまま読めて、渋谷として始まる（saveArea）。
 //       場所・乗っている車・手配・進行中の依頼は残さない。続きは駅前の広場から、手配なしで始まり、途中だった依頼は受け直す。
 //       服の写真は日々入れ替わり、依頼も増減するので、読むときに「いまも在る物」だけに絞る（applySave）。
 //       撮影用の URL（?gtoShot= &demo= &mode=）で始めたときは、呼ぶ側（engine）が読みも書きもしない。
-import { MISSIONS } from './missionData'
+import { isAreaId } from './areas'
+import { ALL_MISSIONS } from './missionData'
 import { OUTFIT_TUNING } from './outfit'
-import type { GtoState } from './types'
+import type { AreaId, GtoState } from './types'
 
 export const SAVE_KEY = 'gto.save.v1'
 const SAVE_VERSION = 1
@@ -22,17 +24,24 @@ export interface GtoSave {
   wearing: string
   /** 手持ちの服（新しい順） */
   wardrobe: string[]
-  /** 達成した依頼の id（達成した順） */
+  /** 達成した依頼の id（達成した順。全エリアを通した 1 本の列） */
   done: string[]
+  /** [areas] いまいるエリア。無ければ渋谷（渋谷にいるあいだは欄を置かない＝これまでの保存と同じ形） */
+  area?: AreaId
 }
 
-export const saveOf = (state: Pick<GtoState, 'cash' | 'outfit' | 'mission'>): GtoSave => ({
+/** いまの進行を取り出す。area は、いまいるエリア（省くと渋谷） */
+export const saveOf = (state: Pick<GtoState, 'cash' | 'outfit' | 'mission'>, area: AreaId = 'shibuya'): GtoSave => ({
   v: SAVE_VERSION,
   cash: state.cash,
   wearing: state.outfit.wearing,
   wardrobe: [...state.outfit.wardrobe],
   done: [...state.mission.done],
+  ...(area !== 'shibuya' ? { area } : {}),
 })
+
+/** 保存した進行の「いまいるエリア」（保存が無い・欄が無い・知らないエリアなら渋谷） */
+export const saveArea = (save: GtoSave | null | undefined): AreaId => save?.area ?? 'shibuya'
 
 const strings = (v: unknown): string[] | null => (Array.isArray(v) && v.every((s) => typeof s === 'string') ? [...new Set(v as string[])] : null)
 
@@ -50,7 +59,9 @@ export function parseSave(raw: string | null | undefined): GtoSave | null {
   const wardrobe = strings(d.wardrobe)
   const done = strings(d.done)
   if (d.v !== SAVE_VERSION || typeof d.cash !== 'number' || !Number.isFinite(d.cash) || typeof d.wearing !== 'string' || !wardrobe || !done) return null
-  return { v: SAVE_VERSION, cash: Math.min(CASH_MAX, Math.max(0, Math.round(d.cash))), wearing: d.wearing, wardrobe, done }
+  // エリアの欄は、知っているエリアのときだけ残す（無い・知らない名前なら渋谷として始まる）
+  const area = isAreaId(d.area) && d.area !== 'shibuya' ? { area: d.area } : {}
+  return { v: SAVE_VERSION, cash: Math.min(CASH_MAX, Math.max(0, Math.round(d.cash))), wearing: d.wearing, wardrobe, done, ...area }
 }
 
 /** 達成した依頼のうち、いまも在って、前提の依頼も達成している物だけを残す */
@@ -60,7 +71,7 @@ function knownDone(done: readonly string[]): string[] {
   for (let grew = true; grew; ) {
     grew = false
     for (const id of done) {
-      const def = MISSIONS.find((m) => m.id === id)
+      const def = ALL_MISSIONS.find((m) => m.id === id)
       if (!def || kept.includes(id) || (def.after != null && !kept.includes(def.after))) continue
       kept.push(id)
       grew = true
@@ -90,7 +101,8 @@ export function applySave(state: GtoState, save: GtoSave, outfitKeys: readonly s
 }
 
 /** 最初の状態から何か進んでいるか（進んでいなければ、題名の画面は「はじめる」だけでよい）。startCash は始めの所持金 */
-export const hasProgress = (save: GtoSave, startCash: number): boolean => save.cash !== startCash || save.wardrobe.length > 1 || save.done.length > 0
+export const hasProgress = (save: GtoSave, startCash: number): boolean =>
+  save.cash !== startCash || save.wardrobe.length > 1 || save.done.length > 0 || saveArea(save) !== 'shibuya'
 
 export interface SaveSummary {
   cash: number
@@ -105,7 +117,7 @@ export const saveSummary = (save: GtoSave): SaveSummary => ({
   cash: save.cash,
   outfits: save.wardrobe.length,
   missions: knownDone(save.done).length,
-  missionTotal: MISSIONS.length,
+  missionTotal: ALL_MISSIONS.length,
 })
 
 // ---- 端末への読み書き（保存できない設定のブラウザでも遊べるよう、失敗は黙って流す） ----

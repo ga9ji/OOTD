@@ -8,8 +8,14 @@
 // ・向き heading はラジアン。北が 0、時計回りが＋。進行方向は (x, z) = (sin h, −cos h)。
 
 // ----------------------------------------------------------------------------
-// 地図データ（shibuyaMap.json の形。scripts/gto-bake-map.mjs が出力する）
+// 地図データ（data/<エリア>Map.json の形。scripts/gto-bake-map.mjs が出力する）
 // ----------------------------------------------------------------------------
+
+/**
+ * [areas] 街のエリア。エリアどうしは地続きではなく、行き来するたびに世界と描画を作り直す（lib/gto/areas.ts）。
+ * 一度に載る街は 1 つ分だけ。
+ */
+export type AreaId = 'shibuya' | 'shinjuku'
 
 /** [x0, z0, x1, z1, ...] の平坦な配列 */
 export type Flat = number[]
@@ -92,6 +98,7 @@ export interface MapBuilding {
   pts: Flat
 }
 
+/** 1 エリアぶんの地図（名前は最初のエリアが渋谷だった名残り。新宿も同じ形） */
 export interface ShibuyaMap {
   meta: {
     title: string
@@ -170,6 +177,8 @@ export interface NearestRoad {
 }
 
 export interface GtoWorld {
+  /** [areas] この世界がどのエリアか（出発地点・依頼・渋谷だけの作り込みの出し分けに使う） */
+  area: AreaId
   map: ShibuyaMap
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number }
   /** 地表の高さ（標高格子の双一次補間） */
@@ -479,6 +488,8 @@ export interface MissionCue {
 }
 
 export interface MissionState {
+  /** [areas] いまいるエリア（依頼人が立つのは、そのエリアの依頼だけ）。無ければ渋谷 */
+  area?: AreaId
   active: MissionProgress | null
   /** 達成したミッションの id */
   done: string[]

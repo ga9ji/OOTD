@@ -6,6 +6,7 @@
 //   → 交通（traffic）→ 車どうしの衝突（vehicle）→ 歩行者（pedestrians）→ 手配（wanted）→ ミッション（missions）
 //   → カメラ（camera）
 // 部品を直すときは、その部品のファイルだけを直せば済むようにしてある（ここは呼び出しの順番と受け渡しだけ）。
+import { AREAS, areaDef } from './areas'
 import { createCamera, moveFrame, stepCamera, vehicleCrowd, type CameraTarget } from './camera'
 import type { DemoStage } from './demo'
 import { angleDiff, dirOf, rng } from './math'
@@ -46,8 +47,8 @@ import {
   WANTED_TUNING,
 } from './wanted'
 
-/** 既定の出発点（駅前の広場。交差点のほうを向いて立つ） */
-export const SPAWN = { x: 26, z: 32, heading: -0.75 }
+/** 渋谷の既定の出発点（駅前の広場。交差点のほうを向いて立つ）。エリアごとの出発点は lib/gto/areas.ts の spawn */
+export const SPAWN = AREAS.shibuya.spawn
 /** 捕まったときの罰金 */
 const BUST_FINE = 2000
 export const START_CASH = 1000
@@ -86,7 +87,7 @@ function onRoad(world: GtoWorld, x: number, z: number, heading: number) {
 export function createGtoState(world: GtoWorld, cfg: SimConfig, opts: StartOptions = {}): GtoState {
   const R = rng((opts.seed ?? 1) * 7919 + 13)
   const mode = opts.mode ?? 'foot'
-  const want = opts.start ?? opts.stage?.at ?? SPAWN
+  const want = opts.start ?? opts.stage?.at ?? areaDef(world).spawn
   const at = mode === 'drive' ? onRoad(world, want.x, want.z, want.heading) : { ...want, ...pick(world.resolveCircle(want.x, want.z, FOOT_TUNING.radius)) }
   let nextId = 1
   const vehicles: VehicleState[] = []
@@ -152,7 +153,7 @@ export function createGtoState(world: GtoWorld, cfg: SimConfig, opts: StartOptio
 
   const level = Math.max(0, Math.min(5, opts.stage?.wanted ?? 0))
   const wanted = level > 0 ? { ...createWanted(), heat: WANTED_TUNING.levels[level - 1] + 8, level } : createWanted()
-  const mission = opts.stage?.mission ? startMission(createMissions(), opts.stage.mission, 0, opts.stage.missionStep ?? 0) : createMissions()
+  const mission = opts.stage?.mission ? startMission(createMissions(world.area), opts.stage.mission, 0, opts.stage.missionStep ?? 0) : createMissions(world.area)
 
   return {
     t: 0,
@@ -411,9 +412,10 @@ export function stepGto(state: GtoState, input: InputFrame, world: GtoWorld, cfg
   }
   if (events.some((e) => e.type === 'busted')) {
     // 捕まったら、罰金を払って駅前から歩いてやり直す
-    const home = world.resolveCircle(SPAWN.x, SPAWN.z, FOOT_TUNING.radius)
+    const spawn = areaDef(world).spawn
+    const home = world.resolveCircle(spawn.x, spawn.z, FOOT_TUNING.radius)
     vehicles = vehicles.filter((v) => v.driver !== 'police').map((v) => (v.driver === 'player' ? { ...v, driver: 'none' as const, speed: 0 } : v))
-    player = { ...createPlayer(home.x, home.z, SPAWN.heading, world) }
+    player = { ...createPlayer(home.x, home.z, spawn.heading, world) }
     mode = 'foot'
     cash = Math.max(0, cash - BUST_FINE)
     wanted = createWanted()

@@ -254,7 +254,7 @@ export default function GtoGameView({ onBack }: Props) {
             <GtoHud engine={engine} time={launch.time} spriteUrl={spriteUrl} touch={touch} />
             {touch && <GtoTouchControls engine={engine} />}
             <GtoWardrobe engine={engine} spriteUrl={spriteUrl} touch={touch} />
-            <GtoPhone engine={engine} touch={touch} />
+            <GtoPhone engine={engine} touch={touch} onTravel={(to) => travelTo(to, { ...engine.progress(), area: to })} />
           </>
         )}
 

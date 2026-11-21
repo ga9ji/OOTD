@@ -172,13 +172,15 @@ export interface AudioFrame {
   trafficPan: number
   train: number
   trainPan: number
+  /** [weather] 雨の強さ 0..1 */
+  rain: number
   /** 信号のある横断歩道の近さ 0..1 */
   signal: number
   sirens: [SirenVoice, SirenVoice]
   wanted: number
 }
 
-export type CueType = GtoEventType | 'step' | 'shift' | 'pop' | 'chirp' | 'clack' | 'voice' | 'farHorn'
+export type CueType = GtoEventType | 'step' | 'shift' | 'pop' | 'chirp' | 'clack' | 'voice' | 'farHorn' | 'thunder'
 
 export interface AudioCue {
   type: CueType
@@ -217,6 +219,7 @@ export const quietFrame = (t = 0, mode: PlayMode = 'foot'): AudioFrame => ({
   trafficPan: 0,
   train: 0,
   trainPan: 0,
+  rain: 0,
   signal: 0,
   sirens: [NO_SIREN, NO_SIREN],
   wanted: 0,
@@ -294,6 +297,10 @@ export interface DeriveOptions {
   time: TimeOfDay
   phase: 'title' | 'play'
   dt: number
+  /** [weather] 雨の強さ 0..1（無ければ降っていない） */
+  rain?: number
+  /** [weather] この描画フレームで雷が鳴るなら、その大きさ 0..1 */
+  thunder?: number
 }
 
 interface Listener {
@@ -439,6 +446,7 @@ export function deriveAudio(state: GtoState, world: GtoWorld, memo: AudioMemo, o
     trafficPan: trafficSum > 0 ? clamp(trafficSide / trafficSum, -1, 1) : 0,
     train: clamp(trainPass(state.t) * (0.06 + falloff(slow.railDist, 55) * 0.94), 0, 1),
     trainPan: slow.railPan,
+    rain: clamp(opts.rain ?? 0, 0, 1),
     signal: clamp(falloff(slow.signalDist, 22), 0, 1),
     sirens: [sirenOf(0), sirenOf(1)],
     wanted: opts.phase === 'play' ? state.wanted.level : 0,
@@ -458,6 +466,8 @@ export function deriveAudio(state: GtoState, world: GtoWorld, memo: AudioMemo, o
     const at = PLAYER_EVENTS.has(e.type) ? { dist: 0, pan: 0 } : locate(l, e.x, e.z)
     cues.push({ type: e.type, gain: clamp(falloff(at.dist, 28), 0, 1), pan: at.pan, value: e.value })
   }
+  // 雷は少し遠くで鳴る（左右は毎回変える）
+  if (opts.thunder) cues.push({ type: 'thunder', gain: clamp(opts.thunder, 0, 1), pan: hash(Math.floor(state.t), 41) * 1.2 - 0.6, value: hash(Math.floor(state.t), 43) })
   const ambient = ambientCues(frame, memo.clock)
   return {
     frame,

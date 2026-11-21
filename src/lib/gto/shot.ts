@@ -3,6 +3,8 @@
 //   ?gtoShot=<スポットのキー>            地図の主要スポットに立ち、通りの先を見る
 //   ?gtoShot=<緯度>,<経度>,<向き(度)>    緯度経度と向きを直接指定（&lat= &lon= &heading= でも可）
 //   &time=day|dusk|night  &quality=high|mobile  &hud=0|1  &seed=N
+//   &weather=clear|cloudy|rain|storm|fog|random   天気を固定する（random は種から決まる順に移り変わる）。
+//                         撮影用の URL では、指定が無ければ晴れのまま（同じクエリなら同じ絵にするため）
 //   &mode=foot|drive      指定すると「遊んでいる画面」（背後カメラ）。無ければ現地写真と同じ目の高さの固定カメラ
 //   &demo=<シナリオ名>    決まった入力を自動再生（demo.ts の DEMOS）
 //   &eye=1.6 &pitch=4 &fov=60   固定カメラの目の高さ m・見上げる角度（度）・縦の画角（度）
@@ -11,6 +13,7 @@ import { fromLatLon } from './map'
 import { photoStandpoint, photoTurn } from './mapPhoto'
 import { DEG, headingOf } from './math'
 import type { GtoWorld, PlayMode, TimeOfDay } from './types'
+import { parseWeather, type WeatherKind } from './weather'
 
 export interface PhotoCamera {
   x: number
@@ -30,6 +33,8 @@ export interface Launch {
   /** 固定カメラ（現地写真との見比べ用）。null なら背後カメラで遊ぶ画面 */
   photo: PhotoCamera | null
   time: TimeOfDay
+  /** [weather] 天気の指定（random は移り変わる。null は指定なし → 遊ぶときは移り変わり、撮影のときは晴れ） */
+  weather: WeatherKind | 'random' | null
   quality: string | null
   hud: boolean
   seed: number
@@ -182,6 +187,7 @@ export function parseLaunch(query: URLSearchParams, world: GtoWorld): Launch {
     start,
     photo,
     time: time === 'dusk' || time === 'night' ? time : 'day',
+    weather: parseWeather(query.get('weather')),
     quality: query.get('quality'),
     hud: query.has('hud') ? query.get('hud') !== '0' : photo == null,
     seed: Math.floor(num(query.get('seed'), 1)),

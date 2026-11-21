@@ -1,6 +1,6 @@
 // Grand Theft Outfit [部品: hud-minimap] HUD。lib/gto/hud.ts の HudModel を並べるだけ。
 // 配置: 常時出すのは画面の隅の3か所だけ。左下（スマホは左上）は丸いミニマップだけ。
-//       右上に「時計・所持金・手配度」と着ている服の値札。
+//       右上に「時計と天気・所持金・手配度」と着ている服の値札。
 //       右下（スマホはミニマップの下）に、走りの計器を1枚にまとめる: 速度、その下に 向かう先までの距離 と 通りの名前。
 //       台詞と目的は、要るときだけ下の中央に1枚の札で出る。画面の中央と主人公のまわりには常時表示を置かない。
 //       「もどる・音・全画面」の列と出典は遊んでいるあいだ隠し、M キーかミニマップを押すと出る（GtoGameView の .gto-chrome を見せるだけ）。
@@ -10,6 +10,7 @@ import { hudModel, splitAccent, type HudModel, type HudTarget } from '../../lib/
 import { CLOCK_TEXT } from '../../lib/gto/lighting'
 import { missionCueModel, missionGauge } from '../../lib/gto/missions'
 import type { TimeOfDay } from '../../lib/gto/types'
+import { WEATHER_LABEL, type WeatherKind } from '../../lib/gto/weather'
 import { useI18n } from '../../lib/i18n'
 import type { GtoEngine } from './engine'
 import './gtoHud.css'
@@ -47,6 +48,7 @@ const Target = ({ target }: { target: HudTarget }) => (
 export default function GtoHud({ engine, time, spriteUrl, touch }: Props) {
   const { t, locale } = useI18n()
   const [hud, setHud] = useState<HudModel | null>(null)
+  const [weather, setWeather] = useState<WeatherKind | null>(null)
   const [menu, setMenu] = useState(menuAtStart)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -77,8 +79,10 @@ export default function GtoHud({ engine, time, spriteUrl, touch }: Props) {
   useEffect(() => {
     let last = ''
     let count = 0
-    return engine.subscribe(({ state, view }) => {
+    return engine.subscribe(({ state, view, weather: sky }) => {
       if (count++ % HUD_EVERY !== 0) return
+      // 天気は種類が変わったときだけ描き直す（同じ値なら React は何もしない）
+      setWeather(sky.kind)
       const next = hudModel(state, engine.world, {
         ...view,
         clock: CLOCK_TEXT[time],
@@ -110,7 +114,14 @@ export default function GtoHud({ engine, time, spriteUrl, touch }: Props) {
       {menu && <button type="button" className="gto-menu-veil" aria-label={t('閉じる')} onClick={() => setMenu(false)} />}
       <div className="gto-hud-status">
         <div className="gto-status-lines">
-          <span className="gto-clock mono">{hud.clock}</span>
+          <span className="gto-clock mono">
+            {weather && (
+              <span className="gto-weather jp" key={weather}>
+                {t(WEATHER_LABEL[weather])}
+              </span>
+            )}
+            {hud.clock}
+          </span>
           <span className="gto-cash mono">{hud.cash}</span>
           <span className={wantedClass} role="img" aria-label={t('手配度 {level}', { level: hud.wanted })}>
             {Array.from({ length: WANTED_MAX }, (_, i) => (

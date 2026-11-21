@@ -1190,6 +1190,8 @@ export const KO: Record<string, string> = {
   '服 {count}着': '옷 {count}벌',
   '依頼 {done}/{total}': '의뢰 {done}/{total}',
   '所持金・服・依頼の進み具合は、この端末に自動で保存されます': '소지금·옷·의뢰 진행 상황은 이 기기에 자동으로 저장됩니다',
+  // [gto weather] HUD の天気
+  '雷雨': '뇌우',
   // [gto cheats] スマホの裏コード、戦車と飛行機
   '高度': '고도',
   '上昇': '상승',

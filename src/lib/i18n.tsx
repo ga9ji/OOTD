@@ -1219,6 +1219,8 @@ export const EN: Record<string, string> = {
   '服 {count}着': '{count} outfits',
   '依頼 {done}/{total}': 'Jobs {done}/{total}',
   '所持金・服・依頼の進み具合は、この端末に自動で保存されます': 'Cash, outfits and job progress are saved on this device automatically',
+  // [gto weather] HUD の天気
+  '雷雨': 'Storm',
   // [gto cheats] スマホの裏コード、戦車と飛行機
   '高度': 'ALT',
   '上昇': 'Climb',

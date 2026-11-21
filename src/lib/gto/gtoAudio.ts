@@ -34,6 +34,9 @@ export interface AudioFrameInfo {
   dt: number
   /** スマホ向けの軽い構成にするか（quality.mobile） */
   lite?: boolean
+  /** [weather] 雨の強さ 0..1 と、このフレームで鳴る雷の大きさ 0..1 */
+  rain?: number
+  thunder?: number
 }
 
 export interface RenderOptions {
@@ -230,6 +233,7 @@ export function createGtoAudio(): GtoAudio {
       crowd: Number(latest.crowd.toFixed(2)),
       traffic: Number(latest.traffic.toFixed(2)),
       train: Number(latest.train.toFixed(2)),
+      rain: Number(latest.rain.toFixed(2)),
       signal: Number(latest.signal.toFixed(2)),
       sirens: latest.sirens.map((s) => Number(s.gain.toFixed(2))),
     }),

@@ -13,6 +13,7 @@ import GameFullscreenButton from './GameFullscreenButton'
 import GameShareButton from './GameShareButton'
 import GtoHud, { MENU_EVENT } from './gto/GtoHud'
 import GtoMinimap from './gto/GtoMinimap'
+import GtoMenuTravel from './gto/GtoMenuTravel'
 import GtoPhone, { PHONE_EVENT } from './gto/GtoPhone'
 import GtoTitle from './gto/GtoTitle'
 import GtoTouchControls from './gto/GtoTouchControls'
@@ -254,7 +255,9 @@ export default function GtoGameView({ onBack }: Props) {
             <GtoHud engine={engine} time={launch.time} spriteUrl={spriteUrl} touch={touch} />
             {touch && <GtoTouchControls engine={engine} />}
             <GtoWardrobe engine={engine} spriteUrl={spriteUrl} touch={touch} />
-            <GtoPhone engine={engine} touch={touch} onTravel={(to) => travelTo(to, { ...engine.progress(), area: to })} />
+            <GtoPhone engine={engine} touch={touch} />
+            {/* [areas] メニューの「のりかえ」（メニューを開いているあいだだけ見える） */}
+            <GtoMenuTravel engine={engine} onTravel={(to) => travelTo(to, { ...engine.progress(), area: to })} />
           </>
         )}
 

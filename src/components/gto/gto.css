@@ -179,10 +179,71 @@
   pointer-events: auto;
   cursor: pointer;
 }
+/* [areas] メニューの「のりかえ」。操作列の下に置き、メニューを開いているあいだだけ出す */
+.gto-menu-travel {
+  display: none;
+}
+.gto-stage[data-gto-hud='menu'] .gto-menu-travel {
+  position: absolute;
+  z-index: 5;
+  top: calc(50% + 38px);
+  left: 50%;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  width: min(360px, calc(100% - 32px));
+  transform: translateX(-50%);
+  color: var(--gto-cloth);
+  text-align: center;
+}
+.gto-menu-travel p {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+}
+.gto-menu-travel p b {
+  color: var(--gto-thread);
+}
+.gto-menu-travel-go {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.gto-menu-travel button {
+  height: 40px;
+  padding: 0 20px;
+  border: 0;
+  background: var(--gto-mint);
+  color: var(--gto-ink);
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.gto-menu-travel button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+.gto-menu-travel button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.gto-menu-travel small {
+  color: #ffb9a0;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+/* 出典は舞台の下端（「のりかえ」の下。背の低い舞台でも、2 行に折り返しても枠からはみ出さない） */
 .gto-stage[data-gto-hud='menu'] .gto-credit.corner {
-  top: calc(50% + 34px);
+  top: auto;
   right: 12px;
-  bottom: auto;
+  bottom: 10px;
   left: 12px;
   z-index: 5;
   font-size: 10.5px;

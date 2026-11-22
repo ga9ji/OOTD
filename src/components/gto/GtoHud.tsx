@@ -4,6 +4,7 @@
 //       右下（スマホはミニマップの下）に、走りの計器を1枚にまとめる: 速度、その下に 向かう先までの距離 と 通りの名前。
 //       台詞と目的は、要るときだけ下の中央に1枚の札で出る。画面の中央と主人公のまわりには常時表示を置かない。
 //       「もどる・音・全画面」の列と出典は遊んでいるあいだ隠し、M キーかミニマップを押すと出る（GtoGameView の .gto-chrome を見せるだけ）。
+//       [areas] メニューを開くと、列の下にほかのエリアへ移る「のりかえ」も出る（GtoMenuTravel）。
 // 手配度は星ではなくハンガーの数で見せる（服のゲームなので）。
 import { useEffect, useRef, useState } from 'react'
 import { hudModel, splitAccent, type HudModel, type HudTarget } from '../../lib/gto/hud'

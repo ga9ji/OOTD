@@ -78,3 +78,21 @@ export const SHINJUKU_TABLES = {
   // 目印の場所にする建物 [spots のキー, 名前の正規表現]。名前は内部参照専用で、画面には出さない
   SPOT_BUILDINGS: [],
 }
+
+// ---- 原宿・表参道の補正表 -----------------------------------------------------
+// 新宿の表と同じ形。現地写真との突き合わせはまだしていない。高さの補正は空のまま（OSM の値と、階数・隣からの推定に任せる）。
+export const HARAJUKU_TABLES = {
+  HEIGHT_OVERRIDES: {},
+  HEIGHT_OVERRIDES_BY_NAME: [],
+  EXTRA_BUILDINGS: [],
+  DROP_BUILDINGS: [],
+  CORNER_CUTS: [],
+  ROAD_WIDTH_MIN: {},
+  // 通り沿いの壁の高さの下限（m）。原宿は背の低い街なので、大通りだけを低めにそろえる（路地は OSM のまま低く残す）
+  STREET_WALL_MIN: {
+    表参道: 18,
+    明治通り: 20,
+    青山通り: 24,
+  },
+  SPOT_BUILDINGS: [],
+}

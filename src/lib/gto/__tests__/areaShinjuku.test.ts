@@ -4,7 +4,7 @@ import shinjukuJson from '../data/shinjukuMap.json'
 import { blockStyleOf, createWorld, landmarkOf, LANDMARK_IDS, roofBoards, streetProps } from '../map'
 import { KABUKICHO_ARCH, kabukichoArch, SHINJUKU_BLOCK_STYLES, SHINJUKU_MAIN_STREETS, SHINJUKU_STREET_FURNITURE } from '../mapShinjuku'
 import { cumulative, dist2, pointAlong, pointInPolygon } from '../math'
-import { ALL_MISSIONS, MISSIONS, missionsOf, SHINJUKU_MISSIONS, type MissionStep } from '../missionData'
+import { ALL_MISSIONS, HARAJUKU_MISSIONS, MISSIONS, missionsOf, SHINJUKU_MISSIONS, type MissionStep } from '../missionData'
 import { createMissions, missionMarkers, startMission, stepMissions } from '../missions'
 import { applySave, saveSummary } from '../save'
 import { parseLaunch } from '../shot'
@@ -249,7 +249,7 @@ describe('新宿の依頼と、渋谷の依頼の住み分け', () => {
   })
 
   it('依頼の id は全エリアを通して重ならず、前提の依頼は同じエリアの中にある', () => {
-    expect(ALL_MISSIONS).toHaveLength(MISSIONS.length + SHINJUKU_MISSIONS.length)
+    expect(ALL_MISSIONS).toHaveLength(MISSIONS.length + SHINJUKU_MISSIONS.length + HARAJUKU_MISSIONS.length)
     expect(new Set(ALL_MISSIONS.map((d) => d.id)).size).toBe(ALL_MISSIONS.length)
     for (const list of [MISSIONS, SHINJUKU_MISSIONS]) for (const d of list) if (d.after) expect(list.some((o) => o.id === d.after), d.id).toBe(true)
     // 進行中の依頼は、どのエリアの物でも id から中身を引ける

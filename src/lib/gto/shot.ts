@@ -1,6 +1,6 @@
 // Grand Theft Outfit: 撮影用の URL クエリ。同じクエリなら同じ絵になるようにする。
 // 入口: parseLaunch(query, world) / launchArea(query)（どのエリアで始めるかの指定）/ isCaptureQuery(query)
-//   &area=shibuya|shinjuku               エリアを選ぶ（撮影用。無ければ渋谷。ふつうに遊ぶときは、保存した「いまいるエリア」）
+//   &area=shibuya|shinjuku|harajuku             エリアを選ぶ（撮影用。無ければ渋谷。ふつうに遊ぶときは、保存した「いまいるエリア」）
 //   ?gtoShot=<スポットのキー>            地図の主要スポットに立ち、通りの先を見る
 //   ?gtoShot=<緯度>,<経度>,<向き(度)>    緯度経度と向きを直接指定（&lat= &lon= &heading= でも可）
 //   &time=day|dusk|night  &quality=high|mobile  &hud=0|1  &seed=N

@@ -4,6 +4,7 @@
 import { areaDef } from '../../lib/gto/areas'
 import { isGroundRoad, isScrambleCrossing, roadDeck } from '../../lib/gto/map'
 import { FORK_RED_PATCHES, FORK_ZEBRA_WIDTH, forkCrossing } from '../../lib/gto/map109'
+import { inGrove } from '../../lib/gto/mapHarajuku'
 import { clipOutside, junctionClearings } from '../../lib/gto/mapJunction'
 import { isStubCrossing } from '../../lib/gto/mapStreet'
 import { BUS_APRON } from '../../lib/gto/mapEast'
@@ -27,6 +28,8 @@ export const ROAD_STYLE = {
   /** センター街のレンガ色のブロック舗装 */
   brick: 0xa98572,
   crossBand: 0x9c4a3c,
+  /** 森の地面（土と下草） */
+  grove: 0x5d7448,
   curb: 0xc2c8cf,
   line: 0xe9e6dc,
   lineOrange: 0xe0983a,
@@ -50,7 +53,8 @@ export function buildTerrain(world: GtoWorld, step: number) {
     for (let c = 0; c < cols; c++) {
       const x = el.x0 + c * step
       const z = el.z0 + r * step
-      b.vert(x, world.groundY(x, z), z, 0, 1, 0, x / 4, z / 4, ROAD_STYLE.ground)
+      // [areas] 原宿の神宮の森は、舗装ではなく土と下草の色にする
+      b.vert(x, world.groundY(x, z), z, 0, 1, 0, x / 4, z / 4, inGrove(world, x, z) ? ROAD_STYLE.grove : ROAD_STYLE.ground)
     }
   }
   for (let r = 0; r < rows - 1; r++) {

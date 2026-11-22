@@ -21,7 +21,7 @@ const save = (over: Partial<GtoSave> = {}): GtoSave => ({ v: 1, cash: 4200, wear
 
 describe('gto areas: 表と世界', () => {
   it('世界は自分のエリアを知っている。エリアの分からない世界は渋谷として扱う', () => {
-    expect(AREA_IDS).toEqual(['shibuya', 'shinjuku'])
+    expect(AREA_IDS).toEqual(['shibuya', 'shinjuku', 'harajuku'])
     expect(loadWorld().area).toBe('shibuya')
     expect(createWorld(shibuya.map).area).toBe('shibuya')
     expect(elsewhere.area).toBe('shinjuku')

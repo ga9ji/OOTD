@@ -244,8 +244,8 @@ export function createCityRenderer(ctx: RenderCtx): RenderPart {
   add(arch.solid, new THREE.MeshLambertMaterial({ vertexColors: true }), { cast: true })
   add(arch.glow, glowMaterial, { receive: false })
   let archMaterial: THREE.MeshLambertMaterial | null = null
-  if (!arch.art.empty) {
-    const archTexture = createArchTexture()
+  if (!arch.art.empty && arch.look) {
+    const archTexture = createArchTexture(arch.look)
     disposables.push(archTexture)
     archMaterial = new THREE.MeshLambertMaterial({ map: archTexture, emissiveMap: archTexture, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.15 })
     add(arch.art, archMaterial, { receive: false })

@@ -5,6 +5,7 @@
 import { areaDef, AREAS, type CraneSpec } from './areas'
 import mapJson from './data/shibuyaMap.json'
 import { BLOCK_STYLES, EXTRA_BOARDS } from './mapBlockStyles'
+import { groveTrees, HARAJUKU_BLOCK_STYLES, HARAJUKU_STREET_FURNITURE } from './mapHarajuku'
 import { SHINJUKU_BLOCK_STYLES, SHINJUKU_STREET_FURNITURE } from './mapShinjuku'
 import { EAST_SIGNALS } from './mapEastFront'
 import { inPhotoSight, nearPhotoStand, PHOTO_LAMPS, PHOTO_SIGNAL_CLEAR, PHOTO_STAND_CLEAR } from './mapPhoto'
@@ -344,6 +345,7 @@ const cached = new Map<AreaId, GtoWorld>()
 /** [areas] 渋谷のほかのエリアの地図の読み込み口（動的 import。行くときに初めて読む） */
 const AREA_MAPS: Partial<Record<AreaId, () => Promise<{ default: unknown }>>> = {
   shinjuku: () => import('./data/shinjukuMap.json'),
+  harajuku: () => import('./data/harajukuMap.json'),
 }
 
 /** 同梱の渋谷の地図から世界を作る（1回だけ組み立てて使い回す） */
@@ -477,9 +479,9 @@ export const LANDMARK_IDS: Record<number, LandmarkKind> = {
 }
 
 /** [areas] 全エリアの外装の表（OSM の id はエリアをまたいで重ならないので、1 つに合わせて引く） */
-const ALL_BLOCK_STYLES: Record<number, BlockStyle> = { ...BLOCK_STYLES, ...SHINJUKU_BLOCK_STYLES }
+const ALL_BLOCK_STYLES: Record<number, BlockStyle> = { ...BLOCK_STYLES, ...SHINJUKU_BLOCK_STYLES, ...HARAJUKU_BLOCK_STYLES }
 
-export const landmarkOf = (b: MapBuilding): LandmarkKind | null => LANDMARK_IDS[b.id] ?? (SHINJUKU_BLOCK_STYLES[b.id] ? 'styled' : null)
+export const landmarkOf = (b: MapBuilding): LandmarkKind | null => LANDMARK_IDS[b.id] ?? (SHINJUKU_BLOCK_STYLES[b.id] || HARAJUKU_BLOCK_STYLES[b.id] ? 'styled' : null)
 
 /** 描かない部品（外装を決めて建て直した棟の、宙に浮いた庇など） */
 // 551944268 は円筒の屋根の部品（円筒は renderCity109 が建てる。看板役がここへネオンを吊らないよう目印の表にも載せる）
@@ -651,6 +653,7 @@ const STREET_FURNITURE: Record<string, { lamp: PropKind; every: number; tree: nu
   井ノ頭通り: { lamp: 'lamp-center', every: 22, tree: 0 },
   // [areas] 新宿の通り（渋谷と同じ名前の通りは、上の決まりをそのまま使う）
   ...SHINJUKU_STREET_FURNITURE,
+  ...HARAJUKU_STREET_FURNITURE,
 }
 const CENTER_GAI = '渋谷センター街'
 const PROP_GAP = 3.5
@@ -769,6 +772,8 @@ export function streetProps(world: GtoWorld): StreetProp[] {
 
   // ハチ公前広場の木（scramble_14/16: 駅舎の前に大きな広葉樹が数本）
   if (shibuyaSet) for (const [x, z] of PLAZA_TREES) place('tree', x, z, 0, true, true)
+  // [areas] 原宿: 線路の西の神宮の森（道の並木とは別に、建物の無い一帯を木で埋める）
+  for (const t of groveTrees(world)) place('tree', t.x, t.z, 0, false)
 
   // 宮益坂下の横断歩道の信号柱（写真の立ち位置の脇にも立てるので、place の空きの決まりを通さない）
   if (shibuyaSet) for (const [x, z, deg] of EAST_SIGNALS) out.push({ kind: 'signal', x, z, heading: (deg * Math.PI) / 180 })

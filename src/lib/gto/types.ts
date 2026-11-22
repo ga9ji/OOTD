@@ -15,7 +15,7 @@
  * [areas] 街のエリア。エリアどうしは地続きではなく、行き来するたびに世界と描画を作り直す（lib/gto/areas.ts）。
  * 一度に載る街は 1 つ分だけ。
  */
-export type AreaId = 'shibuya' | 'shinjuku'
+export type AreaId = 'shibuya' | 'shinjuku' | 'harajuku'
 
 /** [x0, z0, x1, z1, ...] の平坦な配列 */
 export type Flat = number[]

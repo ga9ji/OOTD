@@ -1,18 +1,53 @@
-// Grand Theft Outfit [部品: city] 歌舞伎町の通りの入口に立つ赤い門。赤い角柱 2 本に赤い梁を渡し、梁の上に通り名の板、
-// 梁の下に電球の列。通り名は実名（通りの名前は出してよい）。板の両端の飾りは架空。
-// 入口: buildArch(world, detail) → 形（頂点色）・電球（夜に光る）・絵を貼る面（通り名の板） / createArchTexture()
-// 契約: 置き場所は lib/gto/mapShinjuku.ts の kabukichoArch が決める（通りが地図に無ければ何も作らない＝渋谷では立たない）。
+// Grand Theft Outfit [部品: city] 通りの入口に立つ門。角柱 2 本に梁を渡し、梁の上に通り名の板、梁の下に電球の列。
+// 新宿は歌舞伎町の赤い門、原宿は竹下通りの薄荷と桃色の門。通り名は実名（通りの名前は出してよい）。板の両端の飾りは架空。
+// 入口: buildArch(world, detail) → 形（頂点色）・電球（夜に光る）・絵を貼る面（通り名の板）・見た目 / createArchTexture(look)
+// 契約: 置き場所は lib/gto/mapShinjuku.ts の kabukichoArch と mapHarajuku.ts の takeshitaArch が決める
+//       （通りが地図に無ければ何も作らない＝渋谷では立たない。門は 1 エリアに 1 つ）。
 //       ここは形にするだけ。実在の門の意匠は写していない（色と「通りの入口に門がある」ことだけ）。
 import * as THREE from 'three'
+import type { GatePlacement } from '../../lib/gto/map'
+import { TAKESHITA_ARCH, takeshitaArch } from '../../lib/gto/mapHarajuku'
 import { KABUKICHO_ARCH, kabukichoArch } from '../../lib/gto/mapShinjuku'
 import type { GtoWorld } from '../../lib/gto/types'
 import { box, Builder } from './renderCityGeom'
 
-const C = {
-  red: 0xd3202a,
-  redDark: 0x9c1820,
-  base: 0x3a3c40,
-  bulbs: [0xfff2c2, 0xffd166, 0xff8fb8],
+/** 門の見た目: 柱と梁の色・板の裏打ちの色・電球の色、板の絵の色（CSS）と字 */
+export interface ArchLook {
+  post: number
+  dark: number
+  base: number
+  bulbs: number[]
+  plate: { bg: string; border: string; text: string; stroke: string; deco: string }
+  label: string
+}
+
+const LOOKS: Record<'kabukicho' | 'takeshita', ArchLook> = {
+  // 通りの名前から「通り」を落として、門の字にする
+  kabukicho: {
+    post: 0xd3202a,
+    dark: 0x9c1820,
+    base: 0x3a3c40,
+    bulbs: [0xfff2c2, 0xffd166, 0xff8fb8],
+    plate: { bg: '#c81d27', border: '#ffe9a8', text: '#ffe14a', stroke: '#7a0f16', deco: '#ffffff' },
+    label: KABUKICHO_ARCH.street.replace(/通り$/, ''),
+  },
+  takeshita: {
+    post: 0xa6f0de,
+    dark: 0x6fd6c0,
+    base: 0xf2ede4,
+    bulbs: [0xfff2c2, 0xffb3d1, 0xa8ecff],
+    plate: { bg: '#ff8fba', border: '#ffffff', text: '#ffffff', stroke: '#c9457d', deco: '#fff3a8' },
+    label: TAKESHITA_ARCH.street,
+  },
+}
+
+/** そのエリアに立つ門（無ければ null） */
+export function archOf(world: GtoWorld): { gate: GatePlacement; look: ArchLook } | null {
+  const kabukicho = kabukichoArch(world)
+  if (kabukicho) return { gate: kabukicho, look: LOOKS.kabukicho }
+  const takeshita = takeshitaArch(world)
+  if (takeshita) return { gate: takeshita, look: LOOKS.takeshita }
+  return null
 }
 
 /** 柱の高さ・太さ、梁の背丈、板の背丈（m） */
@@ -28,12 +63,17 @@ export interface ArchBuild {
   glow: Builder
   /** 通り名の板（createArchTexture の絵を貼る。夜は自分で光る） */
   art: Builder
+  /** 立てた門の見た目（立てなければ null） */
+  look: ArchLook | null
 }
 
 export function buildArch(world: GtoWorld, detail: boolean): ArchBuild {
-  const out: ArchBuild = { solid: new Builder(), glow: new Builder(), art: new Builder() }
-  const gate = kabukichoArch(world)
-  if (!gate) return out
+  const out: ArchBuild = { solid: new Builder(), glow: new Builder(), art: new Builder(), look: null }
+  const arch = archOf(world)
+  if (!arch) return out
+  const gate = arch.gate
+  const C = { red: arch.look.post, redDark: arch.look.dark, base: arch.look.base, bulbs: arch.look.bulbs }
+  out.look = arch.look
   const { solid, glow, art } = out
   // f = 通りの奥へ向かう向き、s = その右手
   const fx = Math.sin(gate.heading)
@@ -92,30 +132,29 @@ export function buildArch(world: GtoWorld, detail: boolean): ArchBuild {
   return out
 }
 
-/** 通り名の板の絵。赤い地に、白い縁取りの黄色い太字。両端に星の飾り（架空） */
-export function createArchTexture(): THREE.CanvasTexture {
+/** 通り名の板の絵。門の見た目の色の地に、縁取りのある太字。両端に星の飾り（架空） */
+export function createArchTexture(look: ArchLook): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = 1024
   canvas.height = 256
   const g = canvas.getContext('2d')
   if (g) {
-    g.fillStyle = '#c81d27'
+    g.fillStyle = look.plate.bg
     g.fillRect(0, 0, 1024, 256)
-    g.strokeStyle = '#ffe9a8'
+    g.strokeStyle = look.plate.border
     g.lineWidth = 8
     g.strokeRect(10, 10, 1004, 236)
     g.textAlign = 'center'
     g.textBaseline = 'middle'
     g.font = '900 118px "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif'
-    // 通りの名前から「通り」を落として、門の字にする
-    const name = KABUKICHO_ARCH.street.replace(/通り$/, '')
+    const name = look.label
     g.lineJoin = 'round'
     g.lineWidth = 14
-    g.strokeStyle = '#7a0f16'
+    g.strokeStyle = look.plate.stroke
     g.strokeText(name, 512, 134, 860)
-    g.fillStyle = '#ffe14a'
+    g.fillStyle = look.plate.text
     g.fillText(name, 512, 134, 860)
-    g.fillStyle = '#ffffff'
+    g.fillStyle = look.plate.deco
     for (const x of [46, 978]) {
       g.beginPath()
       for (let k = 0; k < 10; k++) {

@@ -162,7 +162,7 @@ describe('gto-bake-map エリア（渋谷・新宿）', () => {
   })
 
   it('エリアごとに、原点・範囲・出力先が違う。新宿は渋谷と同じ広さ', () => {
-    expect(Object.keys(BAKE_AREAS)).toEqual(['shibuya', 'shinjuku'])
+    expect(Object.keys(BAKE_AREAS)).toEqual(['shibuya', 'shinjuku', 'harajuku'])
     expect(BAKE_AREAS.shibuya.origin).toBe(ORIGIN)
     expect(BAKE_AREAS.shibuya.out).toBe('shibuyaMap.json')
     expect(S.out).toBe('shinjukuMap.json')
@@ -290,5 +290,48 @@ describe('gto-bake-map エリア（渋谷・新宿）', () => {
     const raised = raiseStreetWalls([low], [road], new Set(), S.streetWallMin)[0]
     expect(raised.h).toBeGreaterThanOrEqual(Math.min(STREET_WALL_CAP, S.streetWallMin['靖国通り']))
     expect(raised.h).toBeLessThanOrEqual(STREET_WALL_CAP)
+  })
+})
+
+describe('gto-bake-map: 原宿・表参道のエリア', () => {
+  const H = BAKE_AREAS.harajuku
+
+  it('原点（神宮前の交差点）は範囲の中。範囲は渋谷のすぐ北で、切り取りの余白（40m）を足しても重ならない', () => {
+    expect(H.out).toBe('harajukuMap.json')
+    expect(H.origin.lat).toBeGreaterThan(H.bbox.south)
+    expect(H.origin.lat).toBeLessThan(H.bbox.north)
+    expect(H.origin.lon).toBeGreaterThan(H.bbox.west)
+    expect(H.origin.lon).toBeLessThan(H.bbox.east)
+    const margin = 40 / projectionOf(H.origin).mPerDegLat
+    expect(H.bbox.south - margin).toBeGreaterThan(BAKE_AREAS.shibuya.bbox.north + margin)
+  })
+
+  it('道の名前は通りの名前だけを残す（店・施設・駅・橋の名前は落とす。注記は前の部分、キャットストリートは通称にそろえる）', () => {
+    expect(H.roadName('表参道')).toBe('表参道')
+    expect(H.roadName('竹下通り')).toBe('竹下通り')
+    expect(H.roadName('ネッコ坂')).toBe('ネッコ坂')
+    expect(H.roadName('ブラームスの小径')).toBe('ブラームスの小径')
+    expect(H.roadName('代々木公園通り;五輪橋')).toBe('代々木公園通り')
+    expect(H.roadName('旧渋谷川遊歩道路（キャットストリート）')).toBe('キャットストリート')
+    expect(H.roadName('旧渋谷川遊歩道路')).toBe('キャットストリート')
+    for (const n of ['アップルストア 表参道', '表参道駅;A1出入口', '神宮橋', '神宮前第2歩道橋', 'JR原宿駅', '伊藤病院', 'WES表参道ビル', undefined]) expect(H.roadName(n), String(n)).toBeNull()
+  })
+
+  it('駅の構内の通路・ホーム・地下鉄の出入口は地表に出さない（車道は名前で落とさない）', () => {
+    expect(H.dropRoad({ name: 'JR原宿駅;1番線' }, { foot: true, layer: 0 })).toBe(true)
+    expect(H.dropRoad({ name: '表参道駅;A2出入口' }, { foot: true, layer: 0 })).toBe(true)
+    expect(H.dropRoad({ name: '竹下通り' }, { foot: true, layer: 0 })).toBe(false)
+    expect(H.dropRoad({ name: '原宿駅前' }, { foot: false, layer: 0 })).toBe(false)
+    expect(H.dropRoad({}, { foot: true, layer: 0 })).toBe(false)
+  })
+
+  it('高さの分からない建物の、隣からの推定には上限がある（敷地が小さいほど低い）', () => {
+    expect(H.neighborMax({ area: 80 })).toBeLessThan(H.neighborMax({ area: 300 }))
+    expect(H.neighborMax({ area: 300 })).toBeLessThan(H.neighborMax({ area: 2000 }))
+    expect(H.neighborMax({ area: 2000 })).toBeLessThanOrEqual(24)
+    // 渋谷と新宿には上限を付けない（これまでの出力を変えない）
+    expect(BAKE_AREAS.shibuya.neighborMax).toBeUndefined()
+    expect(BAKE_AREAS.shinjuku.neighborMax).toBeUndefined()
+    expect(BAKE_AREAS.shibuya.railBed).toBeUndefined()
   })
 })

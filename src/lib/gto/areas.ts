@@ -1,4 +1,4 @@
-// Grand Theft Outfit [部品: areas] エリア（渋谷・新宿）ごとの決まりごとの表。
+// Grand Theft Outfit [部品: areas] エリア（渋谷・新宿・原宿）ごとの決まりごとの表。
 // 入口: AREAS（表）/ AREA_IDS（並び順）/ areaDef(world か id) / isAreaId(v)
 // 契約: エリアどうしは地続きではない。行き来は読み込みの画面を挟み、世界（map.ts の loadAreaWorld）と描画を作り直す。
 //       ここに置くのは、地図の座標に直接ひもづく「場所」の決まりだけ（出発地点・題名の画面のカメラ・工事のクレーン）。
@@ -99,10 +99,28 @@ export const AREAS: Record<AreaId, AreaDef> = {
     // 歌舞伎町（靖国通りの北）
     neonZones: [{ x: 40, z: -295, r: 185 }],
   },
+  harajuku: {
+    id: 'harajuku',
+    name: '原宿',
+    // 原宿駅の駅前。表参道のケヤキ並木のほうを向いて立つ
+    spawn: { x: -221, z: -140, heading: 2.13 },
+    // 明治通りと表参道の交差点を、表参道の坂の上（東南東）の低い空から見下ろす。背の低い街なので、ほかのエリアより低く近く飛ぶ
+    title: { cx: 0, cz: 0, radius: 130, height: 55, mid: 60, swing: 20, rate: 0.11, lookY: 12, fov: 50 },
+    cranes: [],
+    scramble: false,
+    shibuyaSet: false,
+    // 交差点と、竹下通りの真ん中
+    hubs: [
+      [0, 0],
+      [-45, -305],
+    ],
+    // 竹下通り（色の付いた看板と軒の灯りを多めに）
+    neonZones: [{ x: -45, z: -300, r: 120 }],
+  },
 }
 
 /** エリアの並び順（行き先を選ぶ画面に出す順） */
-export const AREA_IDS: readonly AreaId[] = ['shibuya', 'shinjuku']
+export const AREA_IDS: readonly AreaId[] = ['shibuya', 'shinjuku', 'harajuku']
 
 export const isAreaId = (v: unknown): v is AreaId => typeof v === 'string' && Object.prototype.hasOwnProperty.call(AREAS, v)
 

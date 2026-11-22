@@ -1,7 +1,7 @@
 // Grand Theft Outfit [部品: missions] ミッションの中身（表）。登場人物・筋書き・店はすべて架空。
 // 通りと坂の名前だけ実名。進め方（数え方・失敗の条件）は missions.ts が持つ。
 // 座標は地図と同じ（x=東が＋、z=南が＋、m）。場所が歩ける所にあることはテストで確かめている。
-// [areas] 依頼はエリアごとの表に分ける。MISSIONS は渋谷、SHINJUKU_MISSIONS は新宿。依頼人が立つのは、いまいるエリアの依頼だけ
+// [areas] 依頼はエリアごとの表に分ける。MISSIONS は渋谷、SHINJUKU_MISSIONS は新宿、HARAJUKU_MISSIONS は原宿・表参道。依頼人が立つのは、いまいるエリアの依頼だけ
 //         （missionsOf）。id は全エリアを通して重ならない（達成の記録は 1 本の列に残す。ALL_MISSIONS）。
 import type { AreaId, Flat } from './types'
 
@@ -464,10 +464,183 @@ export const SHINJUKU_MISSIONS: MissionDef[] = [
   },
 ]
 
-const BY_AREA: Record<AreaId, MissionDef[]> = { shibuya: MISSIONS, shinjuku: SHINJUKU_MISSIONS }
+/** 原宿・表参道の依頼。ほかのエリアの依頼とは別の筋で、最初の 1 本は着いたときから開いている */
+export const HARAJUKU_MISSIONS: MissionDef[] = [
+  {
+    // 奪う → 時間内に歩く → 人の多い通りを歩いて抜ける → 車をつかまえる → 車で届ける（原宿の最初の 1 本。駅前から竹下通り・明治通り・表参道まで、街をひと通り見せる）
+    id: 'harajuku-first-pastel',
+    title: '竹下通りの初仕事',
+    giver: '古着屋のハナ',
+    brief: '「店先に飾る一着が足りないの。駅前で見つくろって、竹下通りの門まで持ってきて」',
+    hook: '古着屋のハナが、駅前で人を探している',
+    start: { x: -224, z: -131 },
+    steps: [
+      { kind: 'steal', count: 1, text: '駅前で通行人の服を1着いただく', accent: '服を1着' },
+      {
+        kind: 'goto',
+        x: -198,
+        z: -344.5,
+        radius: 8,
+        timeLimit: 150,
+        text: '線路ぞいを北へ歩いて、竹下通りの門へ',
+        accent: '竹下通りの門',
+        say: '「かわいい。線路ぞいを北へ行くと竹下通りの門があるから、そこで見せて」',
+      },
+      {
+        kind: 'goto',
+        x: 119,
+        z: -196,
+        radius: 8,
+        addTime: 170,
+        text: '竹下通りを歩いて抜け、明治通りの出口へ',
+        accent: '明治通りの出口',
+        say: '「うん、これにする。店は通りの向こうの端。人が多いから、ぶつからないでね」',
+      },
+      {
+        kind: 'vehicle',
+        addTime: 40,
+        text: '車を1台つかまえる',
+        accent: '車',
+        say: '「もう一軒、表参道の店にも見せたいの。車をつかまえてきて」',
+      },
+      {
+        kind: 'goto',
+        x: 430,
+        z: 233,
+        radius: 10,
+        vehicle: true,
+        addTime: 90,
+        text: '表参道のケヤキ並木を下って、店先まで乗りつける',
+        accent: '表参道',
+        say: '「明治通りを下って、表参道を東へ。ケヤキ並木の先の店よ」',
+      },
+    ],
+    reward: 4000,
+    timeBonus: 20,
+  },
+  {
+    // 車をつかまえ、時間内に 2 か所を回り、最後は降りて手渡す
+    id: 'omotesando-runway',
+    title: '表参道はランウェイ',
+    giver: 'スタイリストのレン',
+    brief: '「撮影の衣装が二つ、まだ届いていない。日が傾く前に並木の下で撮りたい。足は現地調達で」',
+    hook: 'スタイリストのレンが、交差点の角で運び手を探している',
+    after: 'harajuku-first-pastel',
+    start: { x: -15, z: 9 },
+    steps: [
+      { kind: 'vehicle', text: '車を1台調達する', accent: '車' },
+      {
+        kind: 'goto',
+        x: 628,
+        z: 358,
+        radius: 12,
+        vehicle: true,
+        timeLimit: 110,
+        text: '表参道を東の端まで走りきる。日が傾く前に',
+        accent: '表参道',
+        say: '「一つめは表参道の坂の上、青山通りの手前。並木をまっすぐ」',
+      },
+      {
+        kind: 'goto',
+        x: 287,
+        z: 163,
+        radius: 10,
+        vehicle: true,
+        addTime: 50,
+        text: '並木を引き返して、坂の途中の撮影場所へ回る',
+        accent: '坂の途中の撮影場所',
+        say: '「二つめは坂の途中。引き返してきて」',
+      },
+      {
+        kind: 'goto',
+        x: 289,
+        z: 174,
+        radius: 12,
+        onFoot: true,
+        addTime: 10,
+        text: '車を降りて、カメラマンに衣装を手渡す',
+        accent: 'カメラマン',
+        say: '「着いたね。車を降りて、カメラマンに直接渡して」',
+      },
+    ],
+    reward: 9000,
+    timeBonus: 50,
+  },
+  {
+    // 尾行して、見回りをかわして場所を押さえ、取り返して逃げる
+    id: 'cat-street-tail',
+    title: 'キャットストリートの忘れ物',
+    giver: '靴磨きのソラ',
+    brief: '「預かった上着を、間違えて持っていった客がいる。キャットストリートを北へ帰るはず。気づかれないように尾けて」',
+    hook: '靴磨きのソラが、キャットストリートの入口で相談があるらしい',
+    after: 'harajuku-first-pastel',
+    start: { x: 222, z: -49 },
+    steps: [
+      {
+        kind: 'tail',
+        path: [224, -56, 252, -74, 261, -82, 265, -88, 267, -93, 271, -124, 269, -138, 268, -161, 269, -167, 274, -181, 281, -190, 304, -202, 307, -204, 320, -225, 323, -239, 328, -267],
+        speed: 2.6,
+        delay: 3,
+        near: 9,
+        far: 55,
+        text: '上着を持った客を尾ける。近づきすぎるな、見失うな',
+        accent: '上着を持った客',
+      },
+      {
+        kind: 'goto',
+        x: 336,
+        z: -288,
+        radius: 5,
+        // 路地の先を、連れの男が行ったり来たりしている
+        guards: [{ path: [346, -296, 349, -302], speed: 1.2, radius: 4 }],
+        text: '通りの曲がり角に立つ。連れの男の赤い輪に入るな',
+        accent: '通りの曲がり角',
+        say: '「その先の曲がり角で待ち合わせだ。場所を押さえて。連れには見つからないで」',
+      },
+      {
+        kind: 'steal',
+        count: 1,
+        text: '上着を1着取り返す',
+        accent: '上着を1着',
+        say: '「押さえた。上着を取り返して。近くを歩いてる人ので、たぶん合ってる」',
+      },
+      { kind: 'escape', text: '手配が消えるまで逃げきる', accent: '手配', say: '「通報された！撒いたら終わり。走って」' },
+    ],
+    reward: 11000,
+  },
+  {
+    // 時間内に奪ってそろえ、車をつかまえ、しわを付けずに運ぶ
+    id: 'harajuku-three-looks',
+    title: '三つの系統',
+    giver: '雑誌編集のミオ',
+    brief: '「特集の撮影に、系統のちがう服が3着いる。竹下通りの出口で借りてきて、青山通りの編集部まで運んで。しわは厳禁」',
+    hook: '雑誌編集のミオが、竹下通りの出口で頭を抱えている',
+    after: 'omotesando-runway',
+    start: { x: 117, z: -197 },
+    steps: [
+      { kind: 'steal', count: 3, timeLimit: 90, text: '服を3着いただく', accent: '服を3着' },
+      { kind: 'vehicle', text: '車に乗る', accent: '車', say: '「そろったね。車で運んで。ぶつけるたびに、しわが増える」' },
+      {
+        kind: 'goto',
+        x: 583,
+        z: 471,
+        radius: 12,
+        vehicle: true,
+        fragile: 4,
+        text: '青山通りの編集部へ届ける。車をぶつけるな',
+        accent: '青山通りの編集部',
+        say: '「編集部は表参道を上りきって、青山通りを右。締め切り前だから、そっとね」',
+      },
+    ],
+    reward: 14000,
+    cleanBonus: 3000,
+  },
+]
+
+const BY_AREA: Record<AreaId, MissionDef[]> = { shibuya: MISSIONS, shinjuku: SHINJUKU_MISSIONS, harajuku: HARAJUKU_MISSIONS }
 
 /** そのエリアで受けられる依頼の表（エリアの分からないときは渋谷） */
 export const missionsOf = (area: AreaId | undefined): MissionDef[] => BY_AREA[area ?? 'shibuya'] ?? MISSIONS
 
 /** 全エリアの依頼（id から引く・達成の記録を読むとき） */
-export const ALL_MISSIONS: MissionDef[] = [...MISSIONS, ...SHINJUKU_MISSIONS]
+export const ALL_MISSIONS: MissionDef[] = [...MISSIONS, ...SHINJUKU_MISSIONS, ...HARAJUKU_MISSIONS]
